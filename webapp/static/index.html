@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bierre — literature search</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1>bierre</h1>
+    <p class="tagline">Literature search &amp; triage across free scholarly sources</p>
+  </header>
+
+  <main>
+    <section class="panel" id="search-panel">
+      <h2>Search</h2>
+      <form id="search-form">
+        <label for="question">Research question</label>
+        <textarea id="question" name="question" rows="4"
+          placeholder="e.g. How can N-halamine groups be incorporated into polymer coatings for rechargeable antimicrobial wound dressings?"></textarea>
+
+        <div class="controls">
+          <div class="field">
+            <label for="profile">Domain profile</label>
+            <select id="profile" name="profile"></select>
+          </div>
+          <label class="checkbox">
+            <input type="checkbox" id="offline" name="offline">
+            Offline test (mock data)
+          </label>
+          <button type="submit" id="run-btn">Run search</button>
+        </div>
+      </form>
+      <p class="status" id="status" hidden></p>
+    </section>
+
+    <section class="panel" id="results-panel" hidden>
+      <div class="results-head">
+        <h2>Results</h2>
+        <label class="checkbox">
+          <input type="checkbox" id="selected-only"> Selected only
+        </label>
+      </div>
+      <p class="summary" id="summary"></p>
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th class="num">Relevance</th>
+            <th>Bucket</th>
+            <th>Status</th>
+            <th>Paper</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

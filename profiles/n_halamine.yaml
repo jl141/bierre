@@ -1,0 +1,123 @@
+# N-halamine antimicrobial coatings profile.
+#
+# This is the original Liu Lab domain logic expressed as data instead of code.
+# Editing this file re-tunes the search, ranking, buckets and extraction without
+# touching Python. See generic.yaml for the schema documentation.
+
+name: n_halamine
+label: N-halamine antimicrobial coatings
+default_question: >-
+  How can N-halamine functional groups be incorporated into biocompatible hydrogel
+  or polymer coatings to achieve rechargeable antimicrobial activity for wound
+  dressing applications?
+
+concepts:
+  - name: n_halamine
+    triggers: [n-halamine, n halamine, n-chloramine, chloramine, active chlorine, rechargeable, recharge, hydantoin]
+    terms: [N-halamine, N-chloramine, hydantoin, active chlorine recharge, sodium hypochlorite chlorination]
+  - name: wound_dressing
+    triggers: [wound, dressing, wound healing]
+    terms: [wound dressing, infected wound, wound healing]
+  - name: antimicrobial
+    triggers: [antimicrobial, antibacterial, biofilm, inhibition]
+    terms: [antimicrobial, antibacterial, biofilm inhibition]
+  - name: polymer
+    triggers: [polymer, hydrogel, chitosan, polyurethane, cellulose, coating]
+    terms: [polymer coating, hydrogel, surface modification, biocompatible polymer]
+
+query_groups:
+  core:
+    - N-halamine hydrogel wound dressing active chlorine recharge
+    - N-halamine antimicrobial coating wound dressing rechargeable
+    - hydantoin N-halamine polymer coating rechargeable antibacterial
+  mechanism:
+    - N-halamine covalent grafting polymer coating
+    - hydantoin functionalized polymer chlorination active chlorine
+    - N-halamine precursor incorporation polymer matrix
+  validation:
+    - N-halamine active chlorine titration recharge cycle
+    - N-halamine leaching cytocompatibility coating
+    - N-halamine antimicrobial assay E. coli S. aureus
+  background:
+    - antimicrobial hydrogel wound dressing biocompatibility
+    - chitosan hydrogel wound dressing antimicrobial
+
+off_topic_terms:
+  - silver nanoparticle
+  - agnp
+  - cuo
+  - photothermal
+  - antibiotic-loaded
+  - peptide hydrogel
+  - carbon dots
+  - graphene
+  - mof
+  - antiviral
+  - corrosion
+
+journal_terms:
+  - advanced
+  - applied surface
+  - biomaterials
+  - colloids and surfaces
+  - materials
+  - polymer
+  - surface
+  - acs applied
+
+term_groups:
+  signal: [N-halamine, N-chloramine, halamine, hydantoin, N-Cl, chlorination, rechlorination, rechargeable, active chlorine, recharge, sodium hypochlorite, NaOCl]
+  matrix: [polyurethane, epoxy, polymer coating, resin, film, membrane, foam]
+  function: [antimicrobial, antibacterial, biocidal, biofilm, recharge, rechargeable, leaching, active chlorine]
+  substrate: [cotton, cellulose, polypropylene, textile, fabric, titanium, food-contact]
+  background: [wound dressing, dressing, hydrogel, chitosan, bandage]
+
+intents:
+  antimicrobial: [inhibit, inhibition, antimicrobial, antibacterial, biofilm, bactericidal]
+  wound_dressing: [wound, dressing, healing]
+  n_halamine: [n-halamine, n-chloramine, active chlorine, recharge]
+
+# First match wins. core = full strict requirement; related = N-halamine
+# chemistry on a non-core substrate; background = dressing/hydrogel without
+# N-halamine signal; offtopic = the fallback.
+buckets:
+  - id: core
+    label: Core N-halamine coating
+    boost: 35.0
+    requires: [signal, matrix, function]
+  - id: related
+    label: Related surface chemistry
+    boost: 15.0
+    requires: [signal]
+  - id: background
+    label: Wound-dressing background
+    boost: 0.0
+    requires: [background]
+    exclude_off_topic: true
+  - id: offtopic
+    label: Off-topic
+    boost: -30.0
+    fallback: true
+
+extraction_fields:
+  - name: Substrate_or_Matrix
+    terms: [polyurethane, hydrogel, chitosan, cotton, cellulose, polymer, fabric, foam, epoxy, PVA, alginate, gelatin]
+  - name: N_Halamine_Precursor
+    terms: ["5,5-dimethylhydantoin", hydantoin, imidazolidinone, triazine, melamine, amide, imide, amine, DMH, HMD]
+  - name: Functional_Group
+    terms: [N-halamine, N-chloramine, halamine, N-Cl, active chlorine, chloramine]
+  - name: Incorporation_Route
+    terms: [covalent grafting, grafting, surface modification, copolymerization, coating, blending, electrospinning, crosslinking]
+  - name: Chlorination_Method
+    terms: [sodium hypochlorite, NaOCl, chlorination, rechlorination, bleach]
+  - name: Active_Chlorine_Content
+    terms: [active chlorine, oxidative chlorine, chlorine content]
+    require_numeric: true
+  - name: Recharge_Cycle
+    terms: [recharge, rechargeable, rechlorination, washing stability, regenerated, retention]
+  - name: Antimicrobial_Organisms
+    terms: [E. coli, Escherichia coli, S. aureus, Staphylococcus aureus, P. aeruginosa, Pseudomonas aeruginosa, MRSA]
+  - name: Leaching_Test
+    terms: [leaching, release, nonleaching, extractables, zone of inhibition]
+  - name: Cytocompatibility_Test
+    terms: [cytotoxicity, cytocompatibility, cell viability, fibroblast, hemolysis, biocompatibility]

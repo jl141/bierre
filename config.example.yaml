@@ -1,0 +1,29 @@
+# Copy to config.yaml and pass with --config (CLI) or webapp --config.
+# Every field is optional; omitted fields fall back to the defaults in core/config.py.
+
+# Which domain profile to load (file name in profiles/, without .yaml).
+profile: n_halamine
+
+# Contact email enables CrossRef/PubMed "polite pools" and Unpaywall lookups.
+contact_email: ""
+use_unpaywall: false
+
+# Optional free API keys (raise rate limits / reliability).
+api_keys:
+  openalex: ""
+  semantic_scholar: ""
+  ncbi: ""
+
+search:
+  max_results_per_query: 10
+  max_queries_per_run: 12
+  concurrent_workers: 8
+  timeout_seconds: 20
+  enabled_sources: [openalex, crossref, pubmed, europepmc, semantic_scholar]
+  serial_sources: [crossref, pubmed]          # queried one-at-a-time to avoid throttling
+  semantic_scholar_max_queries_without_key: 0  # anonymous S2 is rate-limited hard
+
+selection:
+  enabled: true
+  top_n: 25
+  min_relevance: 30.0

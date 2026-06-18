@@ -1,0 +1,55 @@
+# Generic profile — no domain bias.
+#
+# This is the documented schema for every profile. With no concepts, buckets or
+# off-topic terms, ranking is driven purely by lexical/semantic relevance to the
+# question, so the tool works for any field. Copy this file and fill in the
+# sections to specialise it (see n_halamine.yaml for a worked example).
+
+name: generic
+label: General literature search
+default_question: ""
+
+# concepts: topics detected in the question. When a trigger word appears, the
+# concept's `terms` are added to the search queries (query expansion).
+concepts: []
+
+# query_groups: curated seed queries appended only when at least one concept is
+# active. Keyed by an arbitrary group name; values are full query strings.
+query_groups: {}
+
+# off_topic_terms: terms that, when present, down-weight a paper (never delete).
+off_topic_terms: []
+
+# journal_terms: substrings of journal names that signal a relevant venue.
+journal_terms: []
+
+# term_groups: named lists of terms referenced by bucket rules below.
+term_groups: {}
+
+# intents: concept-name -> indicator terms. Scores how well a paper expresses
+# the intent behind an active concept.
+intents: {}
+
+# buckets: relevance categories. The first bucket whose `requires` term-groups
+# all match (un-negated) wins; the `fallback: true` bucket catches the rest.
+# `boost` is added to relevance to produce the final priority. `exclude_off_topic:
+# true` makes a bucket skip papers that contain any off_topic_term (so they fall
+# through to the fallback). With only a fallback bucket, papers rank on relevance alone.
+buckets:
+  - id: all
+    label: Relevant
+    boost: 0.0
+    fallback: true
+
+# extraction_fields: columns of the rule-based evidence table. `terms` are the
+# keywords to look for; `require_numeric: true` keeps only sentences with a number.
+extraction_fields:
+  - name: Methods
+    terms: [synthesis, fabrication, prepared, method, procedure, protocol]
+  - name: Materials
+    terms: [polymer, hydrogel, coating, composite, nanoparticle, film, membrane]
+  - name: Key_Result
+    terms: [increased, decreased, improved, reduction, efficiency, performance, yield]
+    require_numeric: true
+  - name: Limitation
+    terms: [however, although, limitation, did not, future work, remains]
