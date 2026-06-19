@@ -93,6 +93,8 @@ class RankedPaper:
             "reason": "; ".join(self.reasons[:5]),
             "question_relevance": self.question_relevance,
             "snippet": self.snippet,
+            "citation_count": p.citation_count,
+            "influential_citation_count": p.influential_citation_count,
         }
 
 
