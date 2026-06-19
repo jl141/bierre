@@ -27,6 +27,42 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 _CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
 
 
+def _settings_to_dict(s: Settings) -> dict:
+    return {
+        "contact_email": s.contact_email,
+        "use_unpaywall": s.use_unpaywall,
+        "api_keys": dict(s.api_keys),
+        "search": {
+            "max_results_per_query": s.search.max_results_per_query,
+            "max_queries_per_run": s.search.max_queries_per_run,
+            "concurrent_workers": s.search.concurrent_workers,
+            "timeout_seconds": s.search.timeout_seconds,
+            "enabled_sources": list(s.search.enabled_sources),
+            "serial_sources": list(s.search.serial_sources),
+            "semantic_scholar_max_queries_without_key": s.search.semantic_scholar_max_queries_without_key,
+        },
+        "selection": {
+            "enabled": s.selection.enabled,
+            "top_n": s.selection.top_n,
+            "min_relevance": s.selection.min_relevance,
+        },
+    }
+
+
+def _merge_settings(base: Settings, overrides: dict) -> Settings:
+    """Return a new Settings that is *base* deep-merged with *overrides*."""
+    if not overrides:
+        return base
+    merged = _settings_to_dict(base)
+    merged["profile"] = base.profile
+    for key, val in overrides.items():
+        if key in ("search", "selection", "api_keys") and isinstance(val, dict):
+            merged.setdefault(key, {}).update(val)
+        else:
+            merged[key] = val
+    return Settings.from_dict(merged)
+
+
 class Handler(BaseHTTPRequestHandler):
     # Read-only config shared by all requests; set in main().
     settings: Settings = Settings()
@@ -38,6 +74,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_static(self.path.lstrip("/"))
         elif self.path == "/api/profiles":
             self._send_json({"profiles": available_profiles(), "default": self.settings.profile})
+        elif self.path == "/api/settings":
+            self._send_json(_settings_to_dict(self.settings))
         else:
             self.send_error(404)
 
@@ -50,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length) or b"{}")
             result = run_pipeline(
                 question=str(payload.get("question", "")),
-                settings=self.settings,
+                settings=_merge_settings(self.settings, payload.get("settings") or {}),
                 profile=load_profile(payload.get("profile") or self.settings.profile),
                 offline=bool(payload.get("offline")),
             )

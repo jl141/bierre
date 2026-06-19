@@ -35,6 +35,27 @@
       <p class="status" id="status" hidden></p>
     </section>
 
+    <details class="panel settings-panel" id="settings-details">
+      <summary>
+        <span class="settings-summary-label">Search settings</span>
+        <span class="settings-summary-actions">
+          <button type="button" id="reset-basic-btn" class="btn-ghost btn-small">Reset to defaults</button>
+        </span>
+      </summary>
+      <div class="settings-body">
+        <div id="basic-settings" class="settings-group"></div>
+        <details class="settings-advanced" id="advanced-details">
+          <summary>
+            <span class="settings-summary-label">Advanced configuration</span>
+            <span class="settings-summary-actions">
+              <button type="button" id="reset-advanced-btn" class="btn-ghost btn-small">Reset</button>
+            </span>
+          </summary>
+          <div id="advanced-settings" class="settings-group"></div>
+        </details>
+      </div>
+    </details>
+
     <section class="panel" id="results-panel" hidden>
       <div class="results-head">
         <h2>Results</h2>

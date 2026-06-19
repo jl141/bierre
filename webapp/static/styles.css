@@ -148,6 +148,8 @@ tbody tr:hover { background: var(--row-hover); }
 
 /* Indeterminate working bar — honest about not knowing the exact progress. */
 .bar {
+  display: block;
+  width: 100%;
   height: 4px;
   border-radius: 999px;
   background: var(--line);
@@ -283,3 +285,186 @@ tbody tr:hover { background: var(--row-hover); }
 
 /* Subtle row transition ─────────────────────────────────────────────────────── */
 tbody tr { transition: background 0.1s; }
+
+/* ── Settings panel ──────────────────────────────────────────────────────────── */
+.settings-panel > summary,
+.settings-advanced > summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.settings-panel > summary::-webkit-details-marker,
+.settings-advanced > summary::-webkit-details-marker { display: none; }
+.settings-panel > summary::marker,
+.settings-advanced > summary::marker { display: none; }
+
+.settings-panel > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.settings-panel > summary::before {
+  content: "▶";
+  display: inline-block;
+  font-size: 10px;
+  margin-right: 8px;
+  transition: transform 0.15s;
+  color: var(--muted);
+}
+.settings-panel[open] > summary::before { transform: rotate(90deg); }
+
+.settings-body {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.setting-label {
+  flex: 0 0 190px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Numeric stepper */
+.num-ctl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.num-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 1px 7px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.num-btn:hover { background: var(--bg); color: var(--ink); border-color: var(--accent); }
+
+.num-val {
+  display: inline-block;
+  min-width: 36px;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  cursor: text;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  transition: border-color 0.12s, background 0.12s;
+}
+.num-val:hover { border-color: var(--line); background: #fff; }
+
+.num-inline {
+  width: 58px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  text-align: center;
+}
+
+/* Text inputs for email / API keys */
+.setting-text {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 9px;
+  flex: 1 1 auto;
+  max-width: 300px;
+}
+.setting-text:focus { outline: 2px solid rgba(92, 107, 115, 0.25); border-color: var(--accent); }
+
+/* Sources toggles */
+.sources-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Advanced nested panel */
+.settings-advanced {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.settings-advanced > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  padding-right: 128px;
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-bottom: 0;
+}
+.settings-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  padding-right: 128px;
+}
+.settings-summary-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.settings-advanced > summary::before {
+  content: "▶";
+  display: inline-block;
+  font-size: 9px;
+  margin-right: 6px;
+  transition: transform 0.15s;
+}
+.settings-advanced[open] > summary::before { transform: rotate(90deg); }
+.settings-advanced > .settings-group { margin-top: 12px; }
+
+.settings-summary-actions {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  flex: 0 0 auto;
+}
+.settings-panel[open] > summary .settings-summary-actions,
+.settings-advanced[open] > summary .settings-summary-actions {
+  display: inline-flex;
+}
+
+/* Small button modifier — pairs with .btn-ghost */
+.btn-small {
+  font-size: 10px;
+  padding: 3px 8px;
+}
