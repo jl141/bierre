@@ -9,7 +9,7 @@
   --accent: #5c6b73;
   --accent-strong: #46535a;
   --selected: #eef1f0;
-  --row-hover: #f5f4f1;
+  --row-hover: #d4e2de;
 }
 
 * { box-sizing: border-box; }
@@ -118,7 +118,13 @@ th, td {
   font-size: 14px;
   vertical-align: top;
 }
-th { color: var(--muted); font-weight: 600; }
+th {
+  color: var(--muted);
+  font-weight: 600;
+  position: relative;
+  user-select: none;
+  overflow: visible;
+}
 .num { text-align: right; white-space: nowrap; width: 1%; }
 
 tr.selected { background: var(--selected); }
@@ -164,4 +170,116 @@ tbody tr:hover { background: var(--row-hover); }
 @media (max-width: 640px) {
   main { padding: 16px; }
   .controls { gap: 12px; }
+  .results-controls { gap: 8px; }
 }
+
+/* ── Results controls bar ───────────────────────────────────────────────────── */
+.results-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+#results-table {
+  table-layout: fixed;
+}
+
+/* Ghost / outline button ────────────────────────────────────────────────────── */
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  padding: 6px 12px;
+  font-weight: 500;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+/* ── Column resize handle ───────────────────────────────────────────────────── */
+.col-resize {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: col-resize;
+  z-index: 1;
+  padding-left: 9px;
+}
+.col-resize::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  width: 1px;
+  background: var(--line);
+  transition: background 0.15s;
+}
+.col-resize:hover::after {
+  background: var(--accent);
+}
+
+/* ── Column picker (details/summary dropdown) ───────────────────────────────── */
+#col-picker {
+  position: relative;
+}
+#col-picker > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+  user-select: none;
+  font-family: inherit;
+}
+#col-picker > summary::-webkit-details-marker { display: none; }
+#col-picker > summary::marker { display: none; }
+#col-picker > summary::after {
+  content: "\25BE";
+  font-size: 10px;
+  margin-left: 2px;
+  display: inline-block;
+  transition: transform 0.15s;
+}
+#col-picker[open] > summary::after { transform: rotate(-180deg); }
+#col-picker > summary:hover {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+
+.col-picker-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 130px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Subtle row transition ─────────────────────────────────────────────────────── */
+tbody tr { transition: background 0.1s; }

@@ -38,23 +38,25 @@
     <section class="panel" id="results-panel" hidden>
       <div class="results-head">
         <h2>Results</h2>
-        <label class="checkbox">
-          <input type="checkbox" id="selected-only"> Selected only
-        </label>
+        <div class="results-controls">
+          <label class="checkbox">
+            <input type="checkbox" id="selected-only"> Selected only
+          </label>
+          <button type="button" id="reset-widths-btn" class="btn-ghost">Reset widths</button>
+          <details id="col-picker">
+            <summary>Columns</summary>
+            <div id="col-picker-list" class="col-picker-list"></div>
+          </details>
+        </div>
       </div>
       <p class="summary" id="summary"></p>
-      <table id="results-table">
-        <thead>
-          <tr>
-            <th class="num">#</th>
-            <th class="num">Relevance</th>
-            <th>Bucket</th>
-            <th>Status</th>
-            <th>Paper</th>
-          </tr>
-        </thead>
-        <tbody id="results-body"></tbody>
-      </table>
+      <div class="table-wrap">
+        <table id="results-table">
+          <colgroup id="col-group"></colgroup>
+          <thead><tr id="results-head-row"></tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
