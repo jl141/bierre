@@ -22,6 +22,17 @@ search:
   enabled_sources: [openalex, crossref, pubmed, europepmc, semantic_scholar]
   serial_sources: [crossref, pubmed]          # queried one-at-a-time to avoid throttling
   semantic_scholar_max_queries_without_key: 0  # anonymous S2 is rate-limited hard
+  # Optional per-stage HTTP overrides (advanced):
+  # stage names include: openalex, crossref, europepmc, semantic_scholar,
+  # unpaywall, pubmed_esearch, pubmed_efetch
+  source_http_overrides: {}
+  # Example:
+  # source_http_overrides:
+  #   semantic_scholar:
+  #     max_attempts: 4
+  #     backoff_base_seconds: 0.25
+  #     backoff_max_seconds: 1.5
+  #     retryable_status_codes: [429, 500, 502, 503, 504]
 
 selection:
   enabled: true

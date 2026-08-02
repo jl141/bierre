@@ -1,0 +1,51 @@
+# Concrete tuned profile for source-specific HTTP retry/backoff behavior.
+# Copy to config.yaml or pass with --config.
+
+profile: n_halamine
+contact_email: ""
+use_unpaywall: false
+
+api_keys:
+  openalex: ""
+  semantic_scholar: ""
+  ncbi: ""
+
+search:
+  max_results_per_query: 10
+  max_queries_per_run: 12
+  concurrent_workers: 8
+  timeout_seconds: 20
+  enabled_sources: [openalex, crossref, pubmed, europepmc, semantic_scholar]
+  serial_sources: [crossref, pubmed]
+  semantic_scholar_max_queries_without_key: 0
+
+  # Tuned per-stage transport defaults.
+  source_http_overrides:
+    crossref:
+      max_attempts: 2
+      backoff_base_seconds: 0.25
+      backoff_max_seconds: 1.25
+      retryable_status_codes: [429, 500, 502, 503, 504]
+
+    semantic_scholar:
+      max_attempts: 4
+      backoff_base_seconds: 0.35
+      backoff_max_seconds: 2.0
+      retryable_status_codes: [429, 500, 502, 503, 504]
+
+    pubmed_esearch:
+      max_attempts: 3
+      backoff_base_seconds: 0.3
+      backoff_max_seconds: 1.5
+      retryable_status_codes: [429, 500, 502, 503, 504]
+
+    pubmed_efetch:
+      max_attempts: 2
+      backoff_base_seconds: 0.25
+      backoff_max_seconds: 1.0
+      retryable_status_codes: [429, 500, 502, 503, 504]
+
+selection:
+  enabled: true
+  top_n: 25
+  min_relevance: 30.0

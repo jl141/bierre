@@ -38,7 +38,14 @@ def search(ctx: SearchContext, query: str) -> list[Paper]:
     if ctx.email:
         params["mailto"] = ctx.email
 
-    data = request_json(URL, params, ctx.timeout, ctx.errors, "crossref")
+    data = request_json(
+        URL,
+        params,
+        ctx.timeout,
+        ctx.errors,
+        "crossref",
+        **ctx.http_options("crossref"),
+    )
     if not data:
         return []
 

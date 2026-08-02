@@ -10,10 +10,8 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
-import requests
-
 from .. import text
-from ..http import USER_AGENT, record_error
+from ..http import record_error, request_json, request_text
 from ..models import Paper
 from .base import SearchContext
 
@@ -84,35 +82,35 @@ def search(ctx: SearchContext, query: str) -> list[Paper]:
         common["email"] = ctx.email
     if ctx.api_key("ncbi"):
         common["api_key"] = ctx.api_key("ncbi")
-    headers = {"User-Agent": USER_AGENT}
 
-    try:
-        resp = requests.get(
-            ESEARCH,
-            params={**common, "term": query, "retmax": ctx.max_results, "retmode": "json"},
-            timeout=ctx.timeout,
-            headers=headers,
-        )
-        resp.raise_for_status()
-        ids = (resp.json().get("esearchresult") or {}).get("idlist", [])
-    except (requests.RequestException, ValueError) as exc:
-        record_error(ctx.errors, "pubmed_esearch", str(exc), "network_or_api_error")
+    data = request_json(
+        ESEARCH,
+        {**common, "term": query, "retmax": ctx.max_results, "retmode": "json"},
+        ctx.timeout,
+        ctx.errors,
+        "pubmed_esearch",
+        **ctx.http_options("pubmed_esearch"),
+    )
+    if not isinstance(data, dict):
         return []
+    ids = ((data.get("esearchresult") or {}).get("idlist") or [])
 
     if not ids:
         return []
 
+    xml_text = request_text(
+        EFETCH,
+        {**common, "id": ",".join(ids), "retmode": "xml"},
+        ctx.timeout,
+        ctx.errors,
+        "pubmed_efetch",
+        **ctx.http_options("pubmed_efetch"),
+    )
+    if xml_text is None:
+        return []
+
     try:
-        resp = requests.get(
-            EFETCH,
-            params={**common, "id": ",".join(ids), "retmode": "xml"},
-            timeout=ctx.timeout,
-            headers=headers,
-        )
-        resp.raise_for_status()
-        return _parse(resp.text, query)
-    except requests.RequestException as exc:
-        record_error(ctx.errors, "pubmed_efetch", str(exc), "network_or_api_error")
+        return _parse(xml_text, query)
     except ET.ParseError as exc:
         record_error(ctx.errors, "pubmed_efetch", str(exc), "xml_parse_error")
     return []

@@ -153,7 +153,10 @@ def run_pipeline(
         if progress:
             progress(3, 4, "Checking open-access PDFs")
         ctx = SearchContext(
-            timeout=settings.search.timeout_seconds, email=settings.contact_email, errors=errors
+            timeout=settings.search.timeout_seconds,
+            email=settings.contact_email,
+            http_overrides=settings.search.source_http_overrides,
+            errors=errors,
         )
         unpaywall.enrich([r.paper for r in selected], ctx)
         if "unpaywall" not in apis and settings.contact_email:
@@ -189,6 +192,7 @@ def _search(
         timeout=settings.search.timeout_seconds,
         email=settings.contact_email,
         api_keys=settings.api_keys,
+        http_overrides=settings.search.source_http_overrides,
         errors=errors,
     )
     total = len(concurrent) + len(serial) + 3

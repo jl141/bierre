@@ -94,3 +94,21 @@ in `config.yaml`. Add a new domain by copying `generic.yaml`; no code changes.
 ```bash
 python tests/test_pipeline_offline.py     # or: python -m pytest tests/
 ```
+
+## HTTP helper
+
+The shared `core/http.py` `request_json(...)` helper uses a reusable Session
+with bounded retries for transient GET failures (429/5xx and timeout/connection
+errors), exponential backoff with jitter, Retry-After support, and redacted
+error URLs for sensitive query parameters. The function signature remains
+backward-compatible with existing source adapters, and it accepts tuple
+timeouts and returns any valid JSON top-level shape (object/array/scalar).
+
+For a concrete per-source tuning preset, see
+`config.tuned_http.example.yaml`.
+
+Integration check for override propagation:
+
+```bash
+python tests/test_http_overrides_integration.py
+```

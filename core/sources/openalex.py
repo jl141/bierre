@@ -26,6 +26,21 @@ def _authors(item: dict) -> str:
     return "; ".join(n for n in names if n)
 
 
+# TODO: journal-level impact proxy lives on the "source" (venue) object
+# def _impact(item: dict) -> str:
+#     primary_location = item.get("primary_location") or {}
+#     source = primary_location.get("source")
+#     if source and source.get("id"):
+#         src_r = requests.get(source["id"], params={"mailto": "you@example.com"})
+#         if src_r.ok:
+#             src_data = src_r.json()
+#             result["source_name"] = src_data.get("display_name")
+#             # summary_stats.2yr_mean_citedness ~ analogous to journal impact factor
+#             result["source_2yr_mean_citedness"] = (
+#                 src_data.get("summary_stats", {}).get("2yr_mean_citedness")
+#             )
+
+
 def search(ctx: SearchContext, query: str) -> list[Paper]:
     params = {"search": query, "per-page": ctx.max_results}
     if ctx.email:
@@ -33,7 +48,14 @@ def search(ctx: SearchContext, query: str) -> list[Paper]:
     if ctx.api_key("openalex"):
         params["api_key"] = ctx.api_key("openalex")
 
-    data = request_json(URL, params, ctx.timeout, ctx.errors, "openalex")
+    data = request_json(
+        URL,
+        params,
+        ctx.timeout,
+        ctx.errors,
+        "openalex",
+        **ctx.http_options("openalex"),
+    )
     if not data:
         return []
 
@@ -53,6 +75,7 @@ def search(ctx: SearchContext, query: str) -> list[Paper]:
                 url=location.get("landing_page_url") or item.get("doi") or item.get("id") or "",
                 pdf_url=location.get("pdf_url") or best_oa.get("pdf_url") or "",
                 oa_status=oa.get("oa_status") or ("oa" if oa.get("is_oa") else ""),
+                citation_count=item.get("cited_by_count"),
                 sources=["OpenAlex"],
                 search_queries=[query],
             )

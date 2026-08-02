@@ -45,7 +45,12 @@ def enrich(papers: list[Paper], ctx: SearchContext) -> None:
         if not doi:
             continue
         data: dict[str, Any] | None = request_json(
-            API.format(doi=doi), {"email": ctx.email}, ctx.timeout, ctx.errors, "unpaywall"
+            API.format(doi=doi),
+            {"email": ctx.email},
+            ctx.timeout,
+            ctx.errors,
+            "unpaywall",
+            **ctx.http_options("unpaywall"),
         )
         if not data:
             continue

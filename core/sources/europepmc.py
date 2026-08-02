@@ -36,7 +36,14 @@ def search(ctx: SearchContext, query: str) -> list[Paper]:
         "pageSize": ctx.max_results,
         "resultType": "core",
     }
-    data = request_json(URL, params, ctx.timeout, ctx.errors, "europepmc")
+    data = request_json(
+        URL,
+        params,
+        ctx.timeout,
+        ctx.errors,
+        "europepmc",
+        **ctx.http_options("europepmc"),
+    )
     if not data:
         return []
 

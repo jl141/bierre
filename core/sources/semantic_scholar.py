@@ -7,10 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import requests
-
 from .. import text
-from ..http import USER_AGENT, record_error
+from ..http import record_error, request_json
 from ..models import Paper
 from .base import SearchContext
 
@@ -49,13 +47,24 @@ def _parse(data: dict, query: str) -> list[Paper]:
 
 def search(ctx: SearchContext, query: str) -> list[Paper]:
     params: dict[str, Any] = {"query": query, "limit": min(ctx.max_results, 100), "fields": FIELDS}
-    headers = {"User-Agent": USER_AGENT}
+    headers: dict[str, str] = {}
     if ctx.api_key("semantic_scholar"):
-        headers["x-api-key"] = ctx.api_key("semantic_scholar")
+        headers["X-API-KEY"] = ctx.api_key("semantic_scholar")
+
+    data = request_json(
+        URL,
+        params,
+        ctx.timeout,
+        ctx.errors,
+        "semantic_scholar",
+        headers=headers,
+        **ctx.http_options("semantic_scholar"),
+    )
+    if not isinstance(data, dict):
+        return []
     try:
-        resp = requests.get(URL, params=params, timeout=ctx.timeout, headers=headers)
-        resp.raise_for_status()
-        return _parse(resp.json(), query)
-    except (requests.RequestException, ValueError) as exc:
-        record_error(ctx.errors, "semantic_scholar", str(exc), "network_or_api_error")
+        return _parse(data, query)
+    except (TypeError, ValueError) as exc:
+        # Keep adapter-level parse protection if the remote payload shape drifts.
+        record_error(ctx.errors, "semantic_scholar", str(exc), "json_parse_error")
     return []

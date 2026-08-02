@@ -26,6 +26,8 @@ class SearchSettings:
     serial_sources: list[str] = field(default_factory=lambda: ["crossref", "pubmed"])
     # Semantic Scholar is rate-limited hard without a key; cap anonymous queries.
     semantic_scholar_max_queries_without_key: int = 0
+    # Optional per-stage HTTP override knobs consumed by SearchContext.http_options.
+    source_http_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
