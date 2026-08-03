@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import random
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable, TypeVar
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
@@ -28,6 +29,41 @@ DEFAULT_POOL_CONNECTIONS = 16
 
 _sleep = time.sleep
 _jitter_random = random.random
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class _RequestRuntimeOptions:
+    max_attempts: int
+    backoff_base_seconds: float
+    backoff_max_seconds: float
+    retryable_statuses: set[int]
+
+
+@dataclass(frozen=True)
+class _RequestDependencies:
+    session: requests.Session
+    sleep_fn: Callable[[float], None]
+    monotonic_fn: Callable[[], float]
+    jitter_fn: Callable[[], float]
+
+
+@dataclass(frozen=True)
+class _RequestOutcome:
+    response: requests.Response | None
+    attempt_count: int
+    elapsed_ms: int
+    status_code: int | None
+    reason: str | None
+    retryable: bool
+    message: str | None
+
+
+class _ParseResponseError(ValueError):
+    def __init__(self, message: str, error_type: str = "json_parse_error", **extra: Any) -> None:
+        super().__init__(message)
+        self.error_type = error_type
+        self.extra = extra
 
 
 def record_error(
@@ -106,11 +142,12 @@ def _retry_delay_seconds(
     retry_after_seconds: float | None,
     backoff_base_seconds: float,
     backoff_max_seconds: float,
+    jitter_fn: Callable[[], float],
 ) -> float:
     if retry_after_seconds is not None:
         return min(retry_after_seconds, backoff_max_seconds)
     exponential = backoff_base_seconds * (2 ** max(attempt - 1, 0))
-    jitter = _jitter_random() * backoff_base_seconds
+    jitter = jitter_fn() * backoff_base_seconds
     return min(backoff_max_seconds, exponential + jitter)
 
 
@@ -120,6 +157,233 @@ def _appears_json_response(response: requests.Response) -> bool:
         return True
     snippet = (response.text or "").lstrip()[:1]
     return snippet in {"{", "[", '"', "t", "f", "n", "-"} or snippet.isdigit()
+
+
+def _resolve_request_runtime_options(
+    *,
+    max_attempts: int | None,
+    backoff_base_seconds: float | None,
+    backoff_max_seconds: float | None,
+    retryable_status_codes: set[int] | list[int] | tuple[int, ...] | None,
+) -> _RequestRuntimeOptions:
+    resolved_max_attempts = DEFAULT_MAX_ATTEMPTS if max_attempts is None else max_attempts
+    resolved_backoff_base = DEFAULT_BACKOFF_BASE_SECONDS if backoff_base_seconds is None else backoff_base_seconds
+    resolved_backoff_max = DEFAULT_BACKOFF_MAX_SECONDS if backoff_max_seconds is None else backoff_max_seconds
+    return _RequestRuntimeOptions(
+        max_attempts=max(1, int(resolved_max_attempts)),
+        backoff_base_seconds=float(resolved_backoff_base),
+        backoff_max_seconds=float(resolved_backoff_max),
+        retryable_statuses=_normalize_retryable_status_codes(retryable_status_codes),
+    )
+
+
+def _resolve_request_dependencies(
+    *,
+    session: requests.Session | None,
+    sleep_fn: Callable[[float], None] | None,
+    monotonic_fn: Callable[[], float] | None,
+    jitter_fn: Callable[[], float] | None,
+) -> _RequestDependencies:
+    return _RequestDependencies(
+        session=session or _get_session(),
+        sleep_fn=sleep_fn or _sleep,
+        monotonic_fn=monotonic_fn or time.monotonic,
+        jitter_fn=jitter_fn or _jitter_random,
+    )
+
+
+def _request_with_retry(
+    *,
+    url: str,
+    params: dict[str, Any] | None,
+    timeout: int | float | tuple[int | float, int | float],
+    merged_headers: dict[str, str],
+    runtime: _RequestRuntimeOptions,
+    deps: _RequestDependencies,
+) -> _RequestOutcome:
+    start_time = deps.monotonic_fn()
+
+    for attempt in range(1, runtime.max_attempts + 1):
+        try:
+            response = deps.session.get(url, params=params, timeout=timeout, headers=merged_headers)
+        except requests.RequestException as exc:
+            retryable = isinstance(exc, RETRYABLE_EXCEPTION_TYPES)
+            if retryable and attempt < runtime.max_attempts:
+                deps.sleep_fn(
+                    _retry_delay_seconds(
+                        attempt,
+                        None,
+                        runtime.backoff_base_seconds,
+                        runtime.backoff_max_seconds,
+                        deps.jitter_fn,
+                    )
+                )
+                continue
+            elapsed_ms = int((deps.monotonic_fn() - start_time) * 1000)
+            return _RequestOutcome(
+                response=None,
+                attempt_count=attempt,
+                elapsed_ms=elapsed_ms,
+                status_code=None,
+                reason=None,
+                retryable=retryable,
+                message=str(exc),
+            )
+
+        status_code = response.status_code
+        reason = getattr(response, "reason", "") or ""
+        retry_after = _parse_retry_after(response.headers)
+
+        if _is_retryable_status(status_code, runtime.retryable_statuses):
+            if attempt < runtime.max_attempts:
+                deps.sleep_fn(
+                    _retry_delay_seconds(
+                        attempt,
+                        retry_after,
+                        runtime.backoff_base_seconds,
+                        runtime.backoff_max_seconds,
+                        deps.jitter_fn,
+                    )
+                )
+                continue
+            elapsed_ms = int((deps.monotonic_fn() - start_time) * 1000)
+            return _RequestOutcome(
+                response=None,
+                attempt_count=attempt,
+                elapsed_ms=elapsed_ms,
+                status_code=status_code,
+                reason=reason,
+                retryable=True,
+                message=f"HTTP {status_code}: {reason}",
+            )
+
+        if status_code >= 400:
+            elapsed_ms = int((deps.monotonic_fn() - start_time) * 1000)
+            return _RequestOutcome(
+                response=None,
+                attempt_count=attempt,
+                elapsed_ms=elapsed_ms,
+                status_code=status_code,
+                reason=reason,
+                retryable=False,
+                message=f"HTTP {status_code}: {reason}",
+            )
+
+        elapsed_ms = int((deps.monotonic_fn() - start_time) * 1000)
+        return _RequestOutcome(
+            response=response,
+            attempt_count=attempt,
+            elapsed_ms=elapsed_ms,
+            status_code=status_code,
+            reason=reason,
+            retryable=False,
+            message=None,
+        )
+
+    return _RequestOutcome(
+        response=None,
+        attempt_count=runtime.max_attempts,
+        elapsed_ms=int((deps.monotonic_fn() - start_time) * 1000),
+        status_code=None,
+        reason=None,
+        retryable=False,
+        message="Request failed before receiving a response.",
+    )
+
+
+def _record_request_failure(
+    *,
+    errors: list[dict[str, Any]],
+    stage: str,
+    safe_url: str,
+    outcome: _RequestOutcome,
+) -> None:
+    record_error(
+        errors,
+        stage,
+        outcome.message or "Request failed.",
+        "network_or_api_error",
+        url=safe_url,
+        status_code=outcome.status_code,
+        reason=outcome.reason,
+        retryable=outcome.retryable,
+        attempt_count=outcome.attempt_count,
+        elapsed_ms=outcome.elapsed_ms,
+    )
+
+
+def _request_parsed(
+    *,
+    url: str,
+    params: dict[str, Any] | None,
+    timeout: int | float | tuple[int | float, int | float],
+    errors: list[dict[str, Any]],
+    stage: str,
+    headers: dict[str, str] | None,
+    runtime: _RequestRuntimeOptions,
+    deps: _RequestDependencies,
+    parser: Callable[[requests.Response], T],
+    parse_error_type: str,
+) -> T | None:
+    merged_headers = {"User-Agent": USER_AGENT, **(headers or {})}
+    safe_url = _redact_url(url, params)
+    outcome = _request_with_retry(
+        url=url,
+        params=params,
+        timeout=timeout,
+        merged_headers=merged_headers,
+        runtime=runtime,
+        deps=deps,
+    )
+    if outcome.response is None:
+        _record_request_failure(errors=errors, stage=stage, safe_url=safe_url, outcome=outcome)
+        return None
+
+    try:
+        return parser(outcome.response)
+    except _ParseResponseError as exc:
+        record_error(
+            errors,
+            stage,
+            str(exc),
+            exc.error_type,
+            url=safe_url,
+            status_code=outcome.status_code,
+            reason=outcome.reason,
+            retryable=False,
+            attempt_count=outcome.attempt_count,
+            elapsed_ms=outcome.elapsed_ms,
+            **exc.extra,
+        )
+        return None
+    except ValueError as exc:
+        record_error(
+            errors,
+            stage,
+            str(exc),
+            parse_error_type,
+            url=safe_url,
+            status_code=outcome.status_code,
+            reason=outcome.reason,
+            retryable=False,
+            attempt_count=outcome.attempt_count,
+            elapsed_ms=outcome.elapsed_ms,
+        )
+        return None
+
+
+def _parse_json_payload(response: requests.Response) -> Any:
+    if not _appears_json_response(response):
+        raise _ParseResponseError(
+            "Response does not appear to be JSON.",
+            "json_parse_error",
+            content_type=str((response.headers or {}).get("Content-Type") or ""),
+        )
+    return response.json()
+
+
+def _parse_text_payload(response: requests.Response) -> str:
+    return response.text
 
 
 def request_json(
@@ -134,124 +398,40 @@ def request_json(
     backoff_base_seconds: float | None = None,
     backoff_max_seconds: float | None = None,
     retryable_status_codes: set[int] | list[int] | tuple[int, ...] | None = None,
+    session: requests.Session | None = None,
+    sleep_fn: Callable[[float], None] | None = None,
+    monotonic_fn: Callable[[], float] | None = None,
+    jitter_fn: Callable[[], float] | None = None,
 ) -> Any | None:
     """GET ``url`` and return parsed JSON, or ``None`` on any failure.
 
     Network and parse failures are recorded in ``errors`` rather than raised, so
     one flaky source never aborts the whole run.
     """
-    merged_headers = {"User-Agent": USER_AGENT, **(headers or {})}
-    resolved_max_attempts = max(1, int(max_attempts or DEFAULT_MAX_ATTEMPTS))
-    resolved_backoff_base = float(backoff_base_seconds or DEFAULT_BACKOFF_BASE_SECONDS)
-    resolved_backoff_max = float(backoff_max_seconds or DEFAULT_BACKOFF_MAX_SECONDS)
-    resolved_retryable_statuses = _normalize_retryable_status_codes(retryable_status_codes)
-    safe_url = _redact_url(url, params)
-    session = _get_session()
-    start_time = time.monotonic()
-
-    for attempt in range(1, resolved_max_attempts + 1):
-        try:
-            response = session.get(url, params=params, timeout=timeout, headers=merged_headers)
-        except requests.RequestException as exc:
-            retryable = isinstance(exc, RETRYABLE_EXCEPTION_TYPES)
-            if retryable and attempt < resolved_max_attempts:
-                _sleep(_retry_delay_seconds(attempt, None, resolved_backoff_base, resolved_backoff_max))
-                continue
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                str(exc),
-                "network_or_api_error",
-                url=safe_url,
-                status_code=None,
-                reason=None,
-                retryable=retryable,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        status_code = response.status_code
-        reason = getattr(response, "reason", "") or ""
-        retry_after = _parse_retry_after(response.headers)
-        if _is_retryable_status(status_code, resolved_retryable_statuses):
-            if attempt < resolved_max_attempts:
-                _sleep(
-                    _retry_delay_seconds(
-                        attempt,
-                        retry_after,
-                        resolved_backoff_base,
-                        resolved_backoff_max,
-                    )
-                )
-                continue
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                f"HTTP {status_code}: {reason}",
-                "network_or_api_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=True,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        if status_code >= 400:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                f"HTTP {status_code}: {reason}",
-                "network_or_api_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=False,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        if not _appears_json_response(response):
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                "Response does not appear to be JSON.",
-                "json_parse_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=False,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-                content_type=str((response.headers or {}).get("Content-Type") or ""),
-            )
-            return None
-
-        try:
-            return response.json()
-        except ValueError as exc:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                str(exc),
-                "json_parse_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=False,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-    return None
+    runtime = _resolve_request_runtime_options(
+        max_attempts=max_attempts,
+        backoff_base_seconds=backoff_base_seconds,
+        backoff_max_seconds=backoff_max_seconds,
+        retryable_status_codes=retryable_status_codes,
+    )
+    deps = _resolve_request_dependencies(
+        session=session,
+        sleep_fn=sleep_fn,
+        monotonic_fn=monotonic_fn,
+        jitter_fn=jitter_fn,
+    )
+    return _request_parsed(
+        url=url,
+        params=params,
+        timeout=timeout,
+        errors=errors,
+        stage=stage,
+        headers=headers,
+        runtime=runtime,
+        deps=deps,
+        parser=_parse_json_payload,
+        parse_error_type="json_parse_error",
+    )
 
 
 def request_text(
@@ -266,84 +446,33 @@ def request_text(
     backoff_base_seconds: float | None = None,
     backoff_max_seconds: float | None = None,
     retryable_status_codes: set[int] | list[int] | tuple[int, ...] | None = None,
+    session: requests.Session | None = None,
+    sleep_fn: Callable[[float], None] | None = None,
+    monotonic_fn: Callable[[], float] | None = None,
+    jitter_fn: Callable[[], float] | None = None,
 ) -> str | None:
     """GET ``url`` and return response text, or ``None`` on any failure."""
-    merged_headers = {"User-Agent": USER_AGENT, **(headers or {})}
-    resolved_max_attempts = max(1, int(max_attempts or DEFAULT_MAX_ATTEMPTS))
-    resolved_backoff_base = float(backoff_base_seconds or DEFAULT_BACKOFF_BASE_SECONDS)
-    resolved_backoff_max = float(backoff_max_seconds or DEFAULT_BACKOFF_MAX_SECONDS)
-    resolved_retryable_statuses = _normalize_retryable_status_codes(retryable_status_codes)
-    safe_url = _redact_url(url, params)
-    session = _get_session()
-    start_time = time.monotonic()
-
-    for attempt in range(1, resolved_max_attempts + 1):
-        try:
-            response = session.get(url, params=params, timeout=timeout, headers=merged_headers)
-        except requests.RequestException as exc:
-            retryable = isinstance(exc, RETRYABLE_EXCEPTION_TYPES)
-            if retryable and attempt < resolved_max_attempts:
-                _sleep(_retry_delay_seconds(attempt, None, resolved_backoff_base, resolved_backoff_max))
-                continue
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                str(exc),
-                "network_or_api_error",
-                url=safe_url,
-                status_code=None,
-                reason=None,
-                retryable=retryable,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        status_code = response.status_code
-        reason = getattr(response, "reason", "") or ""
-        retry_after = _parse_retry_after(response.headers)
-        if _is_retryable_status(status_code, resolved_retryable_statuses):
-            if attempt < resolved_max_attempts:
-                _sleep(
-                    _retry_delay_seconds(
-                        attempt,
-                        retry_after,
-                        resolved_backoff_base,
-                        resolved_backoff_max,
-                    )
-                )
-                continue
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                f"HTTP {status_code}: {reason}",
-                "network_or_api_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=True,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        if status_code >= 400:
-            elapsed_ms = int((time.monotonic() - start_time) * 1000)
-            record_error(
-                errors,
-                stage,
-                f"HTTP {status_code}: {reason}",
-                "network_or_api_error",
-                url=safe_url,
-                status_code=status_code,
-                reason=reason,
-                retryable=False,
-                attempt_count=attempt,
-                elapsed_ms=elapsed_ms,
-            )
-            return None
-
-        return response.text
-    return None
+    runtime = _resolve_request_runtime_options(
+        max_attempts=max_attempts,
+        backoff_base_seconds=backoff_base_seconds,
+        backoff_max_seconds=backoff_max_seconds,
+        retryable_status_codes=retryable_status_codes,
+    )
+    deps = _resolve_request_dependencies(
+        session=session,
+        sleep_fn=sleep_fn,
+        monotonic_fn=monotonic_fn,
+        jitter_fn=jitter_fn,
+    )
+    return _request_parsed(
+        url=url,
+        params=params,
+        timeout=timeout,
+        errors=errors,
+        stage=stage,
+        headers=headers,
+        runtime=runtime,
+        deps=deps,
+        parser=_parse_text_payload,
+        parse_error_type="response_parse_error",
+    )
