@@ -18,10 +18,22 @@ import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import Settings, available_profiles, load_profile, run_pipeline  # noqa: E402
+from core import Settings, load_profile, run_pipeline  # noqa: E402
+from core.profile_store import (  # noqa: E402
+    ProfileConflictError,
+    ProfileNotFoundError,
+    ProfileValidationError,
+    ProtectedProfileError,
+    create_profile,
+    delete_profile,
+    get_profile,
+    list_profiles,
+    update_profile,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
@@ -68,24 +80,59 @@ class Handler(BaseHTTPRequestHandler):
     settings: Settings = Settings()
 
     def do_GET(self) -> None:
-        if self.path in ("/", "/index.html"):
+        path = urlparse(self.path).path
+        if path in ("/", "/index.html"):
             self._send_static("index.html")
-        elif self.path in ("/styles.css", "/app.js"):
-            self._send_static(self.path.lstrip("/"))
-        elif self.path == "/api/profiles":
-            self._send_json({"profiles": available_profiles(), "default": self.settings.profile})
-        elif self.path == "/api/settings":
+        elif path in ("/styles.css", "/app.js"):
+            self._send_static(path.lstrip("/"))
+        elif path == "/api/profiles":
+            self._handle_list_profiles()
+        elif path.startswith("/api/profiles/"):
+            profile_id = self._profile_id_from_path(path)
+            if profile_id is None:
+                self.send_error(404)
+                return
+            self._handle_get_profile(profile_id)
+        elif path == "/api/settings":
             self._send_json(_settings_to_dict(self.settings))
         else:
             self.send_error(404)
 
     def do_POST(self) -> None:
-        if self.path != "/api/run":
+        path = urlparse(self.path).path
+        if path == "/api/run":
+            self._handle_run()
+            return
+        if path == "/api/profiles":
+            self._handle_create_profile()
+            return
+        self.send_error(404)
+
+    def do_PUT(self) -> None:
+        path = urlparse(self.path).path
+        if not path.startswith("/api/profiles/"):
             self.send_error(404)
             return
+        profile_id = self._profile_id_from_path(path)
+        if profile_id is None:
+            self.send_error(404)
+            return
+        self._handle_update_profile(profile_id)
+
+    def do_DELETE(self) -> None:
+        path = urlparse(self.path).path
+        if not path.startswith("/api/profiles/"):
+            self.send_error(404)
+            return
+        profile_id = self._profile_id_from_path(path)
+        if profile_id is None:
+            self.send_error(404)
+            return
+        self._handle_delete_profile(profile_id)
+
+    def _handle_run(self) -> None:
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(length) or b"{}")
+            payload = self._read_json()
             result = run_pipeline(
                 question=str(payload.get("question", "")),
                 settings=_merge_settings(self.settings, payload.get("settings") or {}),
@@ -96,7 +143,73 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # surface failures to the UI rather than 500-ing silently
             self._send_json({"error": str(exc)}, status=500)
 
+    def _handle_list_profiles(self) -> None:
+        profiles = [item.to_dict() for item in list_profiles()]
+        self._send_json(
+            {
+                "profiles": [item["id"] for item in profiles],
+                "profiles_meta": profiles,
+                "default": self.settings.profile,
+            }
+        )
+
+    def _handle_get_profile(self, profile_id: str) -> None:
+        try:
+            profile = get_profile(profile_id)
+            self._send_json({"id": profile_id, "profile": profile})
+        except ProfileNotFoundError as exc:
+            self._send_json({"error": str(exc)}, status=404)
+        except ProfileValidationError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+
+    def _handle_create_profile(self) -> None:
+        try:
+            payload = self._read_json()
+            created = create_profile(payload)
+            self._send_json(created, status=201)
+        except ProfileValidationError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+        except ProfileConflictError as exc:
+            self._send_json({"error": str(exc)}, status=409)
+
+    def _handle_update_profile(self, profile_id: str) -> None:
+        try:
+            payload = self._read_json()
+            updated = update_profile(profile_id, payload)
+            self._send_json(updated)
+        except ProfileNotFoundError as exc:
+            self._send_json({"error": str(exc)}, status=404)
+        except ProfileValidationError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+
+    def _handle_delete_profile(self, profile_id: str) -> None:
+        try:
+            delete_profile(profile_id)
+            self._send_json({"deleted": profile_id})
+        except ProfileNotFoundError as exc:
+            self._send_json({"error": str(exc)}, status=404)
+        except ProfileValidationError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+        except ProtectedProfileError as exc:
+            self._send_json({"error": str(exc)}, status=403)
+
     # --- helpers ---
+
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        payload = json.loads(self.rfile.read(length) or b"{}")
+        if not isinstance(payload, dict):
+            raise ProfileValidationError("Request body must be a JSON object.")
+        return payload
+
+    def _profile_id_from_path(self, path: str) -> str | None:
+        prefix = "/api/profiles/"
+        if not path.startswith(prefix):
+            return None
+        tail = unquote(path[len(prefix) :]).strip()
+        if not tail or "/" in tail:
+            return None
+        return tail
 
     def _send_static(self, name: str) -> None:
         path = STATIC_DIR / name
