@@ -355,16 +355,16 @@ function profileTemplate() {
   return {
     label: "",
     default_question: "",
-    concepts: [],
-    query_groups: {},
-    off_topic_terms: [],
-    journal_terms: [],
-    intents: {},
-    term_groups: {},
+    concepts: null,
+    query_groups: null,
+    off_topic_terms: null,
+    journal_terms: null,
+    intents: null,
+    term_groups: null,
     buckets: [
       { id: "all", label: "Relevant", boost: 0.0, fallback: true },
     ],
-    extraction_fields: [],
+    extraction_fields: null,
   };
 }
 

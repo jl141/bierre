@@ -27,7 +27,7 @@
               <select id="profile" name="profile"></select>
               <button type="button" id="profile-create-btn" class="btn-icon" aria-label="Create profile" title="Create profile">+</button>
               <button type="button" id="profile-edit-btn" class="btn-icon btn-ghost" aria-label="Edit selected profile" title="Edit selected profile">Edit</button>
-              <button type="button" id="profile-delete-btn" class="btn-icon btn-danger" aria-label="Delete selected profile" title="Delete selected profile">Delete</button>
+              <span hidden><button type="button" id="profile-delete-btn" class="btn-icon btn-danger" aria-label="Delete selected profile" title="Delete selected profile">Delete</button></span>
             </div>
           </div>
           <label class="checkbox">
@@ -98,7 +98,7 @@
 
       <div class="profile-grid">
         <div class="profile-field">
-          <label for="profile-label">Label <span class="tip" tabindex="0" role="button" aria-label="Label tip" data-tip="Clear name users can recognize in the dropdown.&#10;Example: N-halamine antimicrobial coatings.">?</span></label>
+          <label for="profile-label">Label <span class="tip" tabindex="0" role="button" aria-label="Label tip" data-tip="Title to show up in the dropdown.">?</span></label>
           <input id="profile-label" name="label" type="text" required placeholder="e.g. N-halamine antimicrobial coatings">
         </div>
 
@@ -108,12 +108,12 @@
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-concepts">Concepts (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Concepts tip" data-tip="If question says trigger words, add helper words.&#10;Use simple triggers users type; use richer terms with synonyms/abbreviations.&#10;Start narrow, then widen only when needed.">?</span></label>
+          <label for="profile-concepts">Concepts (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Concepts tip" data-tip="If your question contains trigger words, helper terms will be added to expand search.&#10;Use simple triggers but richer terms with synonyms/abbreviations.&#10;Start narrow, then widen only when needed.">?</span></label>
           <textarea id="profile-concepts" name="concepts" rows="5" placeholder='[{"name":"topic","triggers":["term"],"terms":["expanded term"]}]'></textarea>
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-query-groups">Query groups (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Query groups tip" data-tip="Write human-made search strings, not duplicates.&#10;Include a few kinds: mechanism, validation, and background.&#10;These run when at least one concept is active.">?</span></label>
+          <label for="profile-query-groups">Query groups (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Query groups tip" data-tip="Search strings that will run when any concept is active.&#10;Include a few kinds: e.g. mechanism, validation, background.">?</span></label>
           <textarea id="profile-query-groups" name="query_groups" rows="5" placeholder='{"core": ["query one", "query two"]}'></textarea>
         </div>
 
@@ -123,12 +123,12 @@
         </div>
 
         <div class="profile-field">
-          <label for="profile-journal-terms">Journal terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Journal terms tip" data-tip="Small quality hint only (not a strict filter).&#10;Use broad, stable journal substrings.">?</span></label>
+          <label for="profile-journal-terms">Journal terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Journal terms tip" data-tip="Adds a small boost to papers from journals that contain these terms.">?</span></label>
           <textarea id="profile-journal-terms" name="journal_terms" rows="5" placeholder="biomaterials&#10;polymer"></textarea>
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-intents">Intents (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Intents tip" data-tip="Define what good papers should talk about.&#10;Keep terms action-oriented (e.g., inhibition, biofilm, recharge).">?</span></label>
+          <label for="profile-intents">Intents (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Intents tip" data-tip="Define what good papers should talk about.&#10;Keep terms action-oriented (e.g. inhibition, biofilm, recharge).">?</span></label>
           <textarea id="profile-intents" name="intents" rows="4" placeholder='{"antimicrobial": ["antibacterial", "biofilm"]}'></textarea>
         </div>
 
