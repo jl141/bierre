@@ -47,11 +47,14 @@ const profileFormStatus = document.getElementById("profile-form-status");
 
 const profileLabelInput          = document.getElementById("profile-label");
 const profileDefaultQuestionInput = document.getElementById("profile-default-question");
-const profileConceptsInput       = document.getElementById("profile-concepts");
-const profileQueryGroupsInput    = document.getElementById("profile-query-groups");
+const profileConceptsList        = document.getElementById("profile-concepts-list");
+const profileConceptsAddBtn      = document.getElementById("profile-concepts-add");
+const profileQueryGroupsList     = document.getElementById("profile-query-groups-list");
+const profileQueryGroupsAddBtn   = document.getElementById("profile-query-groups-add");
 const profileOffTopicInput       = document.getElementById("profile-off-topic");
 const profileJournalTermsInput   = document.getElementById("profile-journal-terms");
-const profileIntentsInput        = document.getElementById("profile-intents");
+const profileIntentsList         = document.getElementById("profile-intents-list");
+const profileIntentsAddBtn       = document.getElementById("profile-intents-add");
 const profileTermGroupsInput     = document.getElementById("profile-term-groups");
 const profileBucketsInput        = document.getElementById("profile-buckets");
 const profileExtractionInput     = document.getElementById("profile-extraction-fields");
@@ -264,9 +267,28 @@ function parseDelimitedList(value) {
     .filter(Boolean);
 }
 
+function parseCommaList(value) {
+  return String(value || "")
+    .split(",")
+    .map(v => v.trim())
+    .filter(Boolean);
+}
+
+function parseLineList(value) {
+  return String(value || "")
+    .split("\n")
+    .map(v => v.trim())
+    .filter(Boolean);
+}
+
 function listToLines(values) {
   if (!Array.isArray(values) || !values.length) return "";
   return values.map(v => String(v)).join("\n");
+}
+
+function listToCommaText(values) {
+  if (!Array.isArray(values) || !values.length) return "";
+  return values.map(v => String(v)).join(", ");
 }
 
 function prettyJson(value, fallback) {
@@ -290,6 +312,192 @@ function ensureType(value, expected, label) {
   }
   if (expected === "object" && (typeof value !== "object" || value == null || Array.isArray(value))) {
     throw new Error(`${label} must be a JSON object.`);
+  }
+}
+
+const STRUCTURED_PROFILE_SECTIONS = {
+  concepts: {
+    listEl: profileConceptsList,
+    addBtn: profileConceptsAddBtn,
+    emptyItem: () => ({ name: "", triggers: [], terms: [] }),
+    fields: [
+      { key: "name", label: "Concept name", type: "input", placeholder: "e.g. N-halamine coatings" },
+      { key: "triggers", label: "Triggers", type: "textarea", rows: 2, className: "profile-subfield-compact", placeholder: "term, phrase" },
+      { key: "terms", label: "Terms", type: "textarea", rows: 2, className: "profile-subfield-compact", placeholder: "expanded term, synonym" },
+    ],
+    normalize(value) {
+      return Array.isArray(value)
+        ? value.map((item) => ({
+            name: String(item?.name || "").trim(),
+            triggers: Array.isArray(item?.triggers) ? item.triggers : [],
+            terms: Array.isArray(item?.terms) ? item.terms : [],
+          }))
+        : [];
+    },
+    serialize(items) {
+      return items
+        .map((item) => ({
+          name: String(item.name || "").trim(),
+          triggers: parseCommaList(item.triggers),
+          terms: parseCommaList(item.terms),
+        }))
+        .filter((item) => item.name || item.triggers.length || item.terms.length);
+    },
+    format(field, value) {
+      return field.key === "name" ? String(value || "") : listToCommaText(value);
+    },
+  },
+  queryGroups: {
+    listEl: profileQueryGroupsList,
+    addBtn: profileQueryGroupsAddBtn,
+    emptyItem: () => ({ name: "", queries: [] }),
+    fields: [
+      { key: "name", label: "Group name", type: "input", placeholder: "e.g. mechanism" },
+      { key: "queries", label: "Queries", type: "textarea", rows: 2, className: "profile-subfield-wide", placeholder: "One query per line" },
+    ],
+    normalize(value) {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) return [];
+      return Object.entries(value).map(([name, queries]) => ({
+        name,
+        queries: Array.isArray(queries) ? queries : [],
+      }));
+    },
+    serialize(items) {
+      const pairs = items
+        .map((item) => ({
+          name: String(item.name || "").trim(),
+          queries: parseLineList(item.queries),
+        }))
+        .filter((item) => item.name || item.queries.length)
+        .map((item) => [item.name, item.queries]);
+      return Object.fromEntries(pairs.filter(([name]) => name));
+    },
+    format(field, value) {
+      return field.key === "name" ? String(value || "") : listToLines(value);
+    },
+  },
+  intents: {
+    listEl: profileIntentsList,
+    addBtn: profileIntentsAddBtn,
+    emptyItem: () => ({ name: "", terms: [] }),
+    fields: [
+      { key: "name", label: "Intent name", type: "input", placeholder: "e.g. antimicrobial" },
+      { key: "terms", label: "Target terms", type: "textarea", rows: 2, className: "profile-subfield-wide", placeholder: "antibacterial, biofilm" },
+    ],
+    normalize(value) {
+      if (typeof value !== "object" || value == null || Array.isArray(value)) return [];
+      return Object.entries(value).map(([name, terms]) => ({
+        name,
+        terms: Array.isArray(terms) ? terms : [],
+      }));
+    },
+    serialize(items) {
+      const pairs = items
+        .map((item) => ({
+          name: String(item.name || "").trim(),
+          terms: parseCommaList(item.terms),
+        }))
+        .filter((item) => item.name || item.terms.length)
+        .map((item) => [item.name, item.terms]);
+      return Object.fromEntries(pairs.filter(([name]) => name));
+    },
+    format(field, value) {
+      return field.key === "name" ? String(value || "") : listToCommaText(value);
+    },
+  },
+};
+
+function createStructuredProfileField(field, value) {
+  const wrapper = document.createElement("label");
+  wrapper.className = "profile-subfield";
+  if (field.className) wrapper.classList.add(field.className);
+
+  const label = document.createElement("span");
+  label.className = "profile-subfield-label";
+  label.textContent = field.label;
+
+  const control = document.createElement(field.type === "textarea" ? "textarea" : "input");
+  control.className = "profile-item-input";
+  control.dataset.field = field.key;
+  if (field.type === "textarea") {
+    control.rows = field.rows || 3;
+    control.dataset.autosize = "profile";
+  } else {
+    control.type = "text";
+  }
+  if (field.placeholder) control.placeholder = field.placeholder;
+  control.value = value;
+
+  wrapper.append(label, control);
+  return wrapper;
+}
+
+function autosizeTextarea(textarea) {
+  if (!(textarea instanceof HTMLTextAreaElement)) return;
+  textarea.style.overflowY = "hidden";
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function autosizeProfileTextareas() {
+  profileForm.querySelectorAll("textarea").forEach((textarea) => {
+    autosizeTextarea(textarea);
+  });
+}
+
+function createStructuredProfileItem(section, initialValue) {
+  const item = document.createElement("div");
+  item.className = "profile-item";
+
+  const body = document.createElement("div");
+  body.className = "profile-item-body";
+  if (section.addBtn?.id) body.classList.add(`${section.addBtn.id}-body`);
+
+  for (const field of section.fields) {
+    body.appendChild(createStructuredProfileField(field, section.format(field, initialValue[field.key])));
+  }
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn-icon btn-danger profile-item-remove";
+  removeBtn.setAttribute("aria-label", "Remove item");
+  removeBtn.title = "Remove item";
+  removeBtn.textContent = "x";
+  removeBtn.addEventListener("click", () => item.remove());
+
+  item.append(body, removeBtn);
+  return item;
+}
+
+function renderStructuredProfileSection(section, values) {
+  section.listEl.innerHTML = "";
+  for (const value of values) {
+    section.listEl.appendChild(createStructuredProfileItem(section, value));
+  }
+}
+
+function appendStructuredProfileItem(sectionName) {
+  const section = STRUCTURED_PROFILE_SECTIONS[sectionName];
+  const item = createStructuredProfileItem(section, section.emptyItem());
+  section.listEl.appendChild(item);
+  autosizeProfileTextareas();
+  const firstInput = item.querySelector("input, textarea");
+  if (firstInput) firstInput.focus();
+}
+
+function collectStructuredProfileItems(section) {
+  return Array.from(section.listEl.querySelectorAll(".profile-item")).map((item) => {
+    const entry = {};
+    item.querySelectorAll("[data-field]").forEach((fieldEl) => {
+      entry[fieldEl.dataset.field] = fieldEl.value;
+    });
+    return entry;
+  });
+}
+
+function initStructuredProfileSections() {
+  for (const [sectionName, section] of Object.entries(STRUCTURED_PROFILE_SECTIONS)) {
+    section.addBtn.addEventListener("click", () => appendStructuredProfileItem(sectionName));
   }
 }
 
@@ -340,14 +548,15 @@ async function loadProfiles(preferredProfile) {
 function resetProfileForm(profile) {
   profileLabelInput.value = profile.label || "";
   profileDefaultQuestionInput.value = profile.default_question || "";
-  profileConceptsInput.value = prettyJson(profile.concepts, []);
-  profileQueryGroupsInput.value = prettyJson(profile.query_groups, {});
+  renderStructuredProfileSection(STRUCTURED_PROFILE_SECTIONS.concepts, STRUCTURED_PROFILE_SECTIONS.concepts.normalize(profile.concepts));
+  renderStructuredProfileSection(STRUCTURED_PROFILE_SECTIONS.queryGroups, STRUCTURED_PROFILE_SECTIONS.queryGroups.normalize(profile.query_groups));
   profileOffTopicInput.value = listToLines(profile.off_topic_terms);
   profileJournalTermsInput.value = listToLines(profile.journal_terms);
-  profileIntentsInput.value = prettyJson(profile.intents, {});
+  renderStructuredProfileSection(STRUCTURED_PROFILE_SECTIONS.intents, STRUCTURED_PROFILE_SECTIONS.intents.normalize(profile.intents));
   profileTermGroupsInput.value = prettyJson(profile.term_groups, {});
   profileBucketsInput.value = prettyJson(profile.buckets, []);
   profileExtractionInput.value = prettyJson(profile.extraction_fields, []);
+  autosizeProfileTextareas();
   setInlineStatus(profileFormStatus, "", false);
 }
 
@@ -375,6 +584,7 @@ async function openCreateProfileModal() {
   profileSaveBtn.textContent = "Create profile";
   resetProfileForm(profileTemplate());
   profileModal.showModal();
+  requestAnimationFrame(autosizeProfileTextareas);
   profileLabelInput.focus();
 }
 
@@ -390,6 +600,7 @@ async function openEditProfileModal() {
     profileSaveBtn.textContent = "Save changes";
     resetProfileForm(data.profile || profileTemplate());
     profileModal.showModal();
+    requestAnimationFrame(autosizeProfileTextareas);
     profileLabelInput.focus();
   } catch (err) {
     setStatus(`Error: ${err.message}`, true, false);
@@ -405,16 +616,19 @@ function collectProfilePayload() {
   const label = String(profileLabelInput.value || "").trim();
   if (!label) throw new Error("Profile label is required.");
 
-  const concepts = parseJsonField(profileConceptsInput.value, [], "Concepts");
-  const queryGroups = parseJsonField(profileQueryGroupsInput.value, {}, "Query groups");
-  const intents = parseJsonField(profileIntentsInput.value, {}, "Intents");
+  const concepts = STRUCTURED_PROFILE_SECTIONS.concepts.serialize(
+    collectStructuredProfileItems(STRUCTURED_PROFILE_SECTIONS.concepts)
+  );
+  const queryGroups = STRUCTURED_PROFILE_SECTIONS.queryGroups.serialize(
+    collectStructuredProfileItems(STRUCTURED_PROFILE_SECTIONS.queryGroups)
+  );
+  const intents = STRUCTURED_PROFILE_SECTIONS.intents.serialize(
+    collectStructuredProfileItems(STRUCTURED_PROFILE_SECTIONS.intents)
+  );
   const termGroups = parseJsonField(profileTermGroupsInput.value, {}, "Term groups");
   const buckets = parseJsonField(profileBucketsInput.value, [], "Buckets");
   const extractionFields = parseJsonField(profileExtractionInput.value, [], "Extraction fields");
 
-  ensureType(concepts, "array", "Concepts");
-  ensureType(queryGroups, "object", "Query groups");
-  ensureType(intents, "object", "Intents");
   ensureType(termGroups, "object", "Term groups");
   ensureType(buckets, "array", "Buckets");
   ensureType(extractionFields, "array", "Extraction fields");
@@ -972,12 +1186,16 @@ profileCreateBtn.addEventListener("click", openCreateProfileModal);
 profileEditBtn.addEventListener("click", openEditProfileModal);
 profileDeleteBtn.addEventListener("click", deleteSelectedProfile);
 profileForm.addEventListener("submit", saveProfileFromModal);
+profileForm.addEventListener("input", (event) => {
+  if (event.target instanceof HTMLTextAreaElement) autosizeTextarea(event.target);
+});
 profileModalClose.addEventListener("click", closeProfileModal);
 profileModal.addEventListener("cancel", () => setInlineStatus(profileFormStatus, "", false));
 profileModal.addEventListener("close", () => hideHoverTip());
 
 buildColPicker();
 initProfileTooltips();
+initStructuredProfileSections();
 loadSettings();
 restoreQueryState();
 loadProfiles().catch((err) => setStatus(`Error: ${err.message}`, true, false));

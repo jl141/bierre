@@ -93,7 +93,7 @@
         <button type="button" id="profile-modal-close" class="btn-ghost btn-small">Close</button>
       </div>
 
-      <p class="profile-modal-note">Define how search expands terms, classifies papers, and extracts evidence. Fields accept JSON for complex structures.</p>
+      <p class="profile-modal-note">Define how search expands terms, classifies papers, and extracts evidence. Advanced fields still accept JSON when you need finer control.</p>
       <p id="profile-form-status" class="status" hidden></p>
 
       <div class="profile-grid">
@@ -108,28 +108,46 @@
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-concepts">Concepts (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Concepts tip" data-tip="If your question contains trigger words, helper terms will be added to expand search.&#10;Use simple triggers but richer terms with synonyms/abbreviations.&#10;Start narrow, then widen only when needed.">?</span></label>
-          <textarea id="profile-concepts" name="concepts" rows="5" placeholder='[{"name":"topic","triggers":["term"],"terms":["expanded term"]}]'></textarea>
+          <div class="profile-list-label">
+            <span>Concepts</span>
+            <span class="label-tools">
+              <span class="tip" tabindex="0" role="button" aria-label="Concepts tip" data-tip="If your question contains trigger words, helper terms will be added to expand search.&#10;Use simple triggers but richer terms with synonyms/abbreviations.&#10;Start narrow, then widen only when needed.">?</span>
+              <button type="button" id="profile-concepts-add" class="btn-icon btn-ghost profile-list-add" aria-label="Add concept" title="Add concept">+</button>
+            </span>
+          </div>
+          <div id="profile-concepts-list" class="profile-list" aria-live="polite"></div>
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-query-groups">Query groups (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Query groups tip" data-tip="Search strings that will run when any concept is active.&#10;Include a few kinds: e.g. mechanism, validation, background.">?</span></label>
-          <textarea id="profile-query-groups" name="query_groups" rows="5" placeholder='{"core": ["query one", "query two"]}'></textarea>
+          <div class="profile-list-label">
+            <span>Query groups</span>
+            <span class="label-tools">
+              <span class="tip" tabindex="0" role="button" aria-label="Query groups tip" data-tip="Search strings that will run when any concept is active.&#10;Include a few kinds: e.g. mechanism, validation, background.">?</span>
+              <button type="button" id="profile-query-groups-add" class="btn-icon btn-ghost profile-list-add" aria-label="Add query group" title="Add query group">+</button>
+            </span>
+          </div>
+          <div id="profile-query-groups-list" class="profile-list" aria-live="polite"></div>
         </div>
 
         <div class="profile-field">
           <label for="profile-off-topic">Off-topic terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Off-topic terms tip" data-tip="Only true distractors belong here.&#10;These terms down-weight papers, so avoid borderline-relevant terms.">?</span></label>
-          <textarea id="profile-off-topic" name="off_topic_terms" rows="5" placeholder="silver nanoparticle&#10;graphene"></textarea>
+          <textarea id="profile-off-topic" name="off_topic_terms" rows="3" placeholder="silver nanoparticle&#10;graphene"></textarea>
         </div>
 
         <div class="profile-field">
           <label for="profile-journal-terms">Journal terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Journal terms tip" data-tip="Adds a small boost to papers from journals that contain these terms.">?</span></label>
-          <textarea id="profile-journal-terms" name="journal_terms" rows="5" placeholder="biomaterials&#10;polymer"></textarea>
+          <textarea id="profile-journal-terms" name="journal_terms" rows="3" placeholder="biomaterials&#10;polymer"></textarea>
         </div>
 
         <div class="profile-field profile-field-wide">
-          <label for="profile-intents">Intents (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Intents tip" data-tip="Define what good papers should talk about.&#10;Keep terms action-oriented (e.g. inhibition, biofilm, recharge).">?</span></label>
-          <textarea id="profile-intents" name="intents" rows="4" placeholder='{"antimicrobial": ["antibacterial", "biofilm"]}'></textarea>
+          <div class="profile-list-label">
+            <span>Intents</span>
+            <span class="label-tools">
+              <span class="tip" tabindex="0" role="button" aria-label="Intents tip" data-tip="Define what good papers should talk about.&#10;Keep terms action-oriented (e.g. inhibition, biofilm, recharge).">?</span>
+              <button type="button" id="profile-intents-add" class="btn-icon btn-ghost profile-list-add" aria-label="Add intent" title="Add intent">+</button>
+            </span>
+          </div>
+          <div id="profile-intents-list" class="profile-list" aria-live="polite"></div>
         </div>
 
         <details class="profile-advanced profile-field-wide">
