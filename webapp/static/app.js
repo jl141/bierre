@@ -34,9 +34,33 @@ const colPickerList    = document.getElementById("col-picker-list");
 const settingsDetails  = document.getElementById("settings-details");
 const resetBasicBtn    = document.getElementById("reset-basic-btn");
 const resetAdvancedBtn = document.getElementById("reset-advanced-btn");
+const profileCreateBtn = document.getElementById("profile-create-btn");
+const profileEditBtn   = document.getElementById("profile-edit-btn");
+const profileDeleteBtn = document.getElementById("profile-delete-btn");
+
+const profileModal      = document.getElementById("profile-modal");
+const profileForm       = document.getElementById("profile-form");
+const profileModalTitle = document.getElementById("profile-modal-title");
+const profileModalClose = document.getElementById("profile-modal-close");
+const profileSaveBtn    = document.getElementById("profile-save-btn");
+const profileFormStatus = document.getElementById("profile-form-status");
+
+const profileLabelInput          = document.getElementById("profile-label");
+const profileDefaultQuestionInput = document.getElementById("profile-default-question");
+const profileConceptsInput       = document.getElementById("profile-concepts");
+const profileQueryGroupsInput    = document.getElementById("profile-query-groups");
+const profileOffTopicInput       = document.getElementById("profile-off-topic");
+const profileJournalTermsInput   = document.getElementById("profile-journal-terms");
+const profileIntentsInput        = document.getElementById("profile-intents");
+const profileTermGroupsInput     = document.getElementById("profile-term-groups");
+const profileBucketsInput        = document.getElementById("profile-buckets");
+const profileExtractionInput     = document.getElementById("profile-extraction-fields");
 
 let lastResult    = null;
 let serverDefaults = null;
+let profilesMeta = [];
+let activeProfileMode = "create";
+let editingProfileId = null;
 
 // ── Persistence helpers ───────────────────────────────────────────────────────
 function loadWidths() {
@@ -94,6 +118,28 @@ function colWidth(id, stored) {
 }
 function colVisible(id, stored) {
   return stored[id] != null ? stored[id] : true;
+}
+
+function profileLabel(profileId) {
+  const match = profilesMeta.find(item => item.id === profileId);
+  return match?.label || profileId;
+}
+
+function getSelectedProfileId() {
+  return String(profileSelect.value || "").trim();
+}
+
+function setInlineStatus(el, text, isError) {
+  if (!el) return;
+  if (!text) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "status";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = text;
+  el.className = "status" + (isError ? " error" : "");
 }
 
 // ── Header & colgroup ─────────────────────────────────────────────────────────
@@ -201,21 +247,240 @@ resetWidthsBtn.addEventListener("click", () => {
   buildHeader();
 });
 
-// ── Profile dropdown ──────────────────────────────────────────────────────────
-fetch("/api/profiles")
-  .then(r => r.json())
-  .then(data => {
-    for (const name of data.profiles || []) {
-      const opt       = document.createElement("option");
-      opt.value       = name;
-      opt.textContent = name;
-      if (name === data.default) opt.selected = true;
-      profileSelect.appendChild(opt);
+// ── Profile CRUD + dropdown ───────────────────────────────────────────────────
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) {
+    throw new Error(data.error || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
+function parseDelimitedList(value) {
+  return String(value || "")
+    .split(/\n|,/)
+    .map(v => v.trim())
+    .filter(Boolean);
+}
+
+function listToLines(values) {
+  if (!Array.isArray(values) || !values.length) return "";
+  return values.map(v => String(v)).join("\n");
+}
+
+function prettyJson(value, fallback) {
+  const source = value == null ? fallback : value;
+  return JSON.stringify(source, null, 2);
+}
+
+function parseJsonField(raw, fallback, label) {
+  const text = String(raw || "").trim();
+  if (!text) return fallback;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${label} must be valid JSON.`);
+  }
+}
+
+function ensureType(value, expected, label) {
+  if (expected === "array" && !Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON array.`);
+  }
+  if (expected === "object" && (typeof value !== "object" || value == null || Array.isArray(value))) {
+    throw new Error(`${label} must be a JSON object.`);
+  }
+}
+
+function updateProfileActionState() {
+  const hasSelection = Boolean(getSelectedProfileId());
+  profileEditBtn.disabled = !hasSelection;
+  profileDeleteBtn.disabled = !hasSelection;
+}
+
+function renderProfileOptions(defaultProfile, preferredProfile) {
+  profileSelect.innerHTML = "";
+  for (const meta of profilesMeta) {
+    const opt = document.createElement("option");
+    opt.value = meta.id;
+    opt.textContent = meta.label;
+    profileSelect.appendChild(opt);
+  }
+
+  const savedProfile = loadQueryState().profile;
+  const candidates = [preferredProfile, savedProfile, defaultProfile];
+  const selectable = new Set(profilesMeta.map(item => item.id));
+
+  for (const candidate of candidates) {
+    if (candidate && selectable.has(candidate)) {
+      profileSelect.value = candidate;
+      break;
     }
-    const savedQ = loadQueryState();
-    if (savedQ.profile) profileSelect.value = savedQ.profile;
-  })
-  .catch(() => {});
+  }
+
+  if (!profileSelect.value && profilesMeta.length) {
+    profileSelect.value = profilesMeta[0].id;
+  }
+
+  updateProfileActionState();
+  saveQueryState();
+}
+
+async function loadProfiles(preferredProfile) {
+  const data = await fetchJson("/api/profiles");
+  const metadata = Array.isArray(data.profiles_meta)
+    ? data.profiles_meta
+    : (data.profiles || []).map(name => ({ id: name, label: name }));
+
+  profilesMeta = metadata;
+  renderProfileOptions(data.default, preferredProfile);
+}
+
+function resetProfileForm(profile) {
+  profileLabelInput.value = profile.label || "";
+  profileDefaultQuestionInput.value = profile.default_question || "";
+  profileConceptsInput.value = prettyJson(profile.concepts, []);
+  profileQueryGroupsInput.value = prettyJson(profile.query_groups, {});
+  profileOffTopicInput.value = listToLines(profile.off_topic_terms);
+  profileJournalTermsInput.value = listToLines(profile.journal_terms);
+  profileIntentsInput.value = prettyJson(profile.intents, {});
+  profileTermGroupsInput.value = prettyJson(profile.term_groups, {});
+  profileBucketsInput.value = prettyJson(profile.buckets, []);
+  profileExtractionInput.value = prettyJson(profile.extraction_fields, []);
+  setInlineStatus(profileFormStatus, "", false);
+}
+
+function profileTemplate() {
+  return {
+    label: "",
+    default_question: "",
+    concepts: [],
+    query_groups: {},
+    off_topic_terms: [],
+    journal_terms: [],
+    intents: {},
+    term_groups: {},
+    buckets: [
+      { id: "all", label: "Relevant", boost: 0.0, fallback: true },
+    ],
+    extraction_fields: [],
+  };
+}
+
+async function openCreateProfileModal() {
+  activeProfileMode = "create";
+  editingProfileId = null;
+  profileModalTitle.textContent = "Create profile";
+  profileSaveBtn.textContent = "Create profile";
+  resetProfileForm(profileTemplate());
+  profileModal.showModal();
+  profileLabelInput.focus();
+}
+
+async function openEditProfileModal() {
+  const profileId = getSelectedProfileId();
+  if (!profileId) return;
+
+  try {
+    const data = await fetchJson(`/api/profiles/${encodeURIComponent(profileId)}`);
+    activeProfileMode = "edit";
+    editingProfileId = profileId;
+    profileModalTitle.textContent = `Edit profile: ${profileLabel(profileId)}`;
+    profileSaveBtn.textContent = "Save changes";
+    resetProfileForm(data.profile || profileTemplate());
+    profileModal.showModal();
+    profileLabelInput.focus();
+  } catch (err) {
+    setStatus(`Error: ${err.message}`, true, false);
+  }
+}
+
+function closeProfileModal() {
+  profileModal.close();
+  setInlineStatus(profileFormStatus, "", false);
+}
+
+function collectProfilePayload() {
+  const label = String(profileLabelInput.value || "").trim();
+  if (!label) throw new Error("Profile label is required.");
+
+  const concepts = parseJsonField(profileConceptsInput.value, [], "Concepts");
+  const queryGroups = parseJsonField(profileQueryGroupsInput.value, {}, "Query groups");
+  const intents = parseJsonField(profileIntentsInput.value, {}, "Intents");
+  const termGroups = parseJsonField(profileTermGroupsInput.value, {}, "Term groups");
+  const buckets = parseJsonField(profileBucketsInput.value, [], "Buckets");
+  const extractionFields = parseJsonField(profileExtractionInput.value, [], "Extraction fields");
+
+  ensureType(concepts, "array", "Concepts");
+  ensureType(queryGroups, "object", "Query groups");
+  ensureType(intents, "object", "Intents");
+  ensureType(termGroups, "object", "Term groups");
+  ensureType(buckets, "array", "Buckets");
+  ensureType(extractionFields, "array", "Extraction fields");
+
+  return {
+    label,
+    default_question: String(profileDefaultQuestionInput.value || "").trim(),
+    concepts,
+    query_groups: queryGroups,
+    off_topic_terms: parseDelimitedList(profileOffTopicInput.value),
+    journal_terms: parseDelimitedList(profileJournalTermsInput.value),
+    intents,
+    term_groups: termGroups,
+    buckets,
+    extraction_fields: extractionFields,
+  };
+}
+
+async function saveProfileFromModal(event) {
+  event.preventDefault();
+  try {
+    const payload = collectProfilePayload();
+    profileSaveBtn.disabled = true;
+
+    let selectedAfterSave = getSelectedProfileId();
+    if (activeProfileMode === "edit" && editingProfileId) {
+      await fetchJson(`/api/profiles/${encodeURIComponent(editingProfileId)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      selectedAfterSave = editingProfileId;
+    } else {
+      const created = await fetchJson("/api/profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      selectedAfterSave = created.id;
+    }
+
+    await loadProfiles(selectedAfterSave);
+    closeProfileModal();
+    setStatus("Profile saved.", false, false);
+  } catch (err) {
+    setInlineStatus(profileFormStatus, `Error: ${err.message}`, true);
+  } finally {
+    profileSaveBtn.disabled = false;
+  }
+}
+
+async function deleteSelectedProfile() {
+  const profileId = getSelectedProfileId();
+  if (!profileId) return;
+  const label = profileLabel(profileId);
+  const ok = window.confirm(`Delete profile \"${label}\"? This cannot be undone.`);
+  if (!ok) return;
+
+  try {
+    await fetchJson(`/api/profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
+    await loadProfiles();
+    setStatus(`Profile \"${label}\" deleted.`, false, false);
+  } catch (err) {
+    setStatus(`Error: ${err.message}`, true, false);
+  }
+}
 
 // ── Form submit ───────────────────────────────────────────────────────────────
 form.addEventListener("submit", async (event) => {
@@ -268,8 +533,9 @@ function setStatus(text, isError, working) {
 
 function render(data) {
   resultsPanel.hidden = false;
+  const profileName = profileLabel(data.profile);
   summaryEl.textContent =
-    `Profile "${data.profile}" · ${data.mode} · found ${data.counts.found} papers, ` +
+    `Profile "${profileName}" · ${data.mode} · found ${data.counts.found} papers, ` +
     `selected ${data.counts.selected}. Sources: ${(data.apis_used || []).join(", ") || "none"}.`;
 
   buildHeader();
@@ -338,6 +604,71 @@ function escapeHtml(value) {
 }
 function escapeAttr(value) {
   return escapeHtml(value).replace(/"/g, "&quot;");
+}
+
+// ── Profile form tooltips ────────────────────────────────────────────────────
+let activeTipEl = null;
+const hoverTip = document.createElement("div");
+hoverTip.className = "hover-tip";
+hoverTip.hidden = true;
+profileModal.appendChild(hoverTip);
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function positionHoverTip(anchor) {
+  const margin = 8;
+  const rect = anchor.getBoundingClientRect();
+  const viewportW = window.innerWidth;
+  const viewportH = window.innerHeight;
+
+  hoverTip.style.left = "0px";
+  hoverTip.style.top = "0px";
+
+  const tipRect = hoverTip.getBoundingClientRect();
+  const centeredX = rect.left + (rect.width / 2) - (tipRect.width / 2);
+  const x = clamp(centeredX, margin, viewportW - tipRect.width - margin);
+
+  const preferredTop = rect.top - tipRect.height - margin;
+  const top = preferredTop >= margin
+    ? preferredTop
+    : clamp(rect.bottom + margin, margin, viewportH - tipRect.height - margin);
+
+  hoverTip.style.left = `${Math.round(x)}px`;
+  hoverTip.style.top = `${Math.round(top)}px`;
+}
+
+function showHoverTip(anchor) {
+  const text = String(anchor.dataset.tip || "").trim();
+  if (!text) return;
+  activeTipEl = anchor;
+  hoverTip.textContent = text;
+  hoverTip.hidden = false;
+  positionHoverTip(anchor);
+}
+
+function hideHoverTip(anchor) {
+  if (anchor && activeTipEl !== anchor) return;
+  activeTipEl = null;
+  hoverTip.hidden = true;
+  hoverTip.textContent = "";
+}
+
+function initProfileTooltips() {
+  document.querySelectorAll(".tip[data-tip]").forEach((tip) => {
+    tip.addEventListener("mouseenter", () => showHoverTip(tip));
+    tip.addEventListener("mouseleave", () => hideHoverTip(tip));
+    tip.addEventListener("focus", () => showHoverTip(tip));
+    tip.addEventListener("blur", () => hideHoverTip(tip));
+  });
+
+  window.addEventListener("scroll", () => {
+    if (activeTipEl) positionHoverTip(activeTipEl);
+  }, true);
+  window.addEventListener("resize", () => {
+    if (activeTipEl) positionHoverTip(activeTipEl);
+  });
 }
 
 // ── Settings panel ────────────────────────────────────────────────────────────
@@ -632,8 +963,21 @@ settingsDetails.addEventListener("input",  saveSettingsState);
 // Persist the query form state as the user edits.
 document.getElementById("question").addEventListener("input",  saveQueryState);
 document.getElementById("offline").addEventListener("change",  saveQueryState);
-profileSelect.addEventListener("change", saveQueryState);
+profileSelect.addEventListener("change", () => {
+  saveQueryState();
+  updateProfileActionState();
+});
+
+profileCreateBtn.addEventListener("click", openCreateProfileModal);
+profileEditBtn.addEventListener("click", openEditProfileModal);
+profileDeleteBtn.addEventListener("click", deleteSelectedProfile);
+profileForm.addEventListener("submit", saveProfileFromModal);
+profileModalClose.addEventListener("click", closeProfileModal);
+profileModal.addEventListener("cancel", () => setInlineStatus(profileFormStatus, "", false));
+profileModal.addEventListener("close", () => hideHoverTip());
 
 buildColPicker();
+initProfileTooltips();
 loadSettings();
 restoreQueryState();
+loadProfiles().catch((err) => setStatus(`Error: ${err.message}`, true, false));

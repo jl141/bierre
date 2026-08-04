@@ -23,7 +23,12 @@
         <div class="controls">
           <div class="field">
             <label for="profile">Domain profile</label>
-            <select id="profile" name="profile"></select>
+            <div class="profile-select-row">
+              <select id="profile" name="profile"></select>
+              <button type="button" id="profile-create-btn" class="btn-icon" aria-label="Create profile" title="Create profile">+</button>
+              <button type="button" id="profile-edit-btn" class="btn-icon btn-ghost" aria-label="Edit selected profile" title="Edit selected profile">Edit</button>
+              <button type="button" id="profile-delete-btn" class="btn-icon btn-danger" aria-label="Delete selected profile" title="Delete selected profile">Delete</button>
+            </div>
           </div>
           <label class="checkbox">
             <input type="checkbox" id="offline" name="offline">
@@ -80,6 +85,77 @@
       </div>
     </section>
   </main>
+
+  <dialog id="profile-modal" class="profile-modal">
+    <form id="profile-form" class="profile-form" method="dialog" novalidate>
+      <div class="profile-modal-head">
+        <h3 id="profile-modal-title">Create profile</h3>
+        <button type="button" id="profile-modal-close" class="btn-ghost btn-small">Close</button>
+      </div>
+
+      <p class="profile-modal-note">Define how search expands terms, classifies papers, and extracts evidence. Fields accept JSON for complex structures.</p>
+      <p id="profile-form-status" class="status" hidden></p>
+
+      <div class="profile-grid">
+        <div class="profile-field">
+          <label for="profile-label">Label <span class="tip" tabindex="0" role="button" aria-label="Label tip" data-tip="Clear name users can recognize in the dropdown.&#10;Example: N-halamine antimicrobial coatings.">?</span></label>
+          <input id="profile-label" name="label" type="text" required placeholder="e.g. N-halamine antimicrobial coatings">
+        </div>
+
+        <div class="profile-field profile-field-wide">
+          <label for="profile-default-question">Default question <span class="tip" tabindex="0" role="button" aria-label="Default question tip" data-tip="Used when search box is empty.&#10;Keep it specific and realistic to your topic.">?</span></label>
+          <textarea id="profile-default-question" name="default_question" rows="2" placeholder="Optional default research question"></textarea>
+        </div>
+
+        <div class="profile-field profile-field-wide">
+          <label for="profile-concepts">Concepts (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Concepts tip" data-tip="If question says trigger words, add helper words.&#10;Use simple triggers users type; use richer terms with synonyms/abbreviations.&#10;Start narrow, then widen only when needed.">?</span></label>
+          <textarea id="profile-concepts" name="concepts" rows="5" placeholder='[{"name":"topic","triggers":["term"],"terms":["expanded term"]}]'></textarea>
+        </div>
+
+        <div class="profile-field profile-field-wide">
+          <label for="profile-query-groups">Query groups (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Query groups tip" data-tip="Write human-made search strings, not duplicates.&#10;Include a few kinds: mechanism, validation, and background.&#10;These run when at least one concept is active.">?</span></label>
+          <textarea id="profile-query-groups" name="query_groups" rows="5" placeholder='{"core": ["query one", "query two"]}'></textarea>
+        </div>
+
+        <div class="profile-field">
+          <label for="profile-off-topic">Off-topic terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Off-topic terms tip" data-tip="Only true distractors belong here.&#10;These terms down-weight papers, so avoid borderline-relevant terms.">?</span></label>
+          <textarea id="profile-off-topic" name="off_topic_terms" rows="5" placeholder="silver nanoparticle&#10;graphene"></textarea>
+        </div>
+
+        <div class="profile-field">
+          <label for="profile-journal-terms">Journal terms (one per line) <span class="tip" tabindex="0" role="button" aria-label="Journal terms tip" data-tip="Small quality hint only (not a strict filter).&#10;Use broad, stable journal substrings.">?</span></label>
+          <textarea id="profile-journal-terms" name="journal_terms" rows="5" placeholder="biomaterials&#10;polymer"></textarea>
+        </div>
+
+        <div class="profile-field profile-field-wide">
+          <label for="profile-intents">Intents (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Intents tip" data-tip="Define what good papers should talk about.&#10;Keep terms action-oriented (e.g., inhibition, biofilm, recharge).">?</span></label>
+          <textarea id="profile-intents" name="intents" rows="4" placeholder='{"antimicrobial": ["antibacterial", "biofilm"]}'></textarea>
+        </div>
+
+        <details class="profile-advanced profile-field-wide">
+          <summary>Advanced profile structure</summary>
+          <div class="profile-advanced-body">
+            <div class="profile-field profile-field-wide">
+              <label for="profile-term-groups">Term groups (JSON object) <span class="tip" tabindex="0" role="button" aria-label="Term groups tip" data-tip="Make named clue sets used by buckets.&#10;Put must-have vocabulary in separate groups (signal, matrix, function).">?</span></label>
+              <textarea id="profile-term-groups" name="term_groups" rows="5" placeholder='{"signal": ["n-halamine", "hydantoin"]}'></textarea>
+            </div>
+            <div class="profile-field profile-field-wide">
+              <label for="profile-buckets">Buckets (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Buckets tip" data-tip="Order matters: first match wins.&#10;Use strict core buckets first, looser buckets later, and one fallback last.&#10;Calibrate with real runs: tighten if junk appears; loosen if good papers are missed.">?</span></label>
+              <textarea id="profile-buckets" name="buckets" rows="6" placeholder='[{"id":"core","label":"Core","boost":15,"requires":["signal"]},{"id":"offtopic","label":"Off-topic","boost":-20,"fallback":true}]'></textarea>
+            </div>
+            <div class="profile-field profile-field-wide">
+              <label for="profile-extraction-fields">Extraction fields (JSON array) <span class="tip" tabindex="0" role="button" aria-label="Extraction fields tip" data-tip="Define the facts you want in the evidence table.&#10;Use require_numeric for metric fields (e.g., active chlorine %, recharge cycles, log reduction).">?</span></label>
+              <textarea id="profile-extraction-fields" name="extraction_fields" rows="5" placeholder='[{"name":"Methods","terms":["synthesis"],"require_numeric":false}]'></textarea>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="profile-modal-actions">
+        <button type="submit" id="profile-save-btn">Save profile</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/app.js"></script>
 </body>
