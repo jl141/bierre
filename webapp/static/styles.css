@@ -10,6 +10,8 @@
   --accent-strong: #46535a;
   --selected: #eef1f0;
   --row-hover: #d4e2de;
+  --danger: #875449;
+  --danger-hover: #6f4037;
 }
 
 * { box-sizing: border-box; }
@@ -36,6 +38,36 @@ main {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* https://www.youtube.com/watch?v=2Oe1hzwVKbA */
+/* coolors.co */
+.gradient-text {
+  background: linear-gradient(
+    47deg,
+    #8E9B90,
+    #93C0A4,
+    #B6C4A2,
+    #D4CDAB,
+    #DCE2BD
+  );
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  background-size: 500% 500%;
+  animation: gradient-animation 6s ease infinite;
+}
+
+@keyframes gradient-animation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .panel {
@@ -95,11 +127,11 @@ textarea:focus, select:focus {
 }
 
 .btn-danger {
-  background: #875449;
+  background: var(--danger);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #6f4037;
+  background: var(--danger-hover);
 }
 
 .checkbox {
