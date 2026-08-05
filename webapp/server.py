@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -131,16 +132,45 @@ class Handler(BaseHTTPRequestHandler):
         self._handle_delete_profile(profile_id)
 
     def _handle_run(self) -> None:
+        stream_started = False
         try:
             payload = self._read_json()
+            settings = _merge_settings(self.settings, payload.get("settings") or {})
+            profile = load_profile(payload.get("profile") or self.settings.profile)
+            question = str(payload.get("question", ""))
+            offline = bool(payload.get("offline"))
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            stream_started = True
+
+            def emit(event: dict) -> None:
+                self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
+                self.wfile.flush()
+
+            def on_progress(step: int, total: int, label: str) -> None:
+                emit({"type": "progress", "step": step, "total": total, "label": label})
+
             result = run_pipeline(
-                question=str(payload.get("question", "")),
-                settings=_merge_settings(self.settings, payload.get("settings") or {}),
-                profile=load_profile(payload.get("profile") or self.settings.profile),
-                offline=bool(payload.get("offline")),
+                question=question,
+                settings=settings,
+                profile=profile,
+                offline=offline,
+                progress=on_progress,
             )
-            self._send_json(result.to_dict())
+            emit({"type": "result", "result": result.to_dict()})
+        except BrokenPipeError:
+            # Client disconnected mid-run; no further write possible.
+            return
         except Exception as exc:  # surface failures to the UI rather than 500-ing silently
+            with suppress(BrokenPipeError):
+                # If stream headers were already sent, ship an event; else return normal JSON error.
+                if stream_started:
+                    self.wfile.write((json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n").encode("utf-8"))
+                    self.wfile.flush()
+                    return
             self._send_json({"error": str(exc)}, status=500)
 
     def _handle_list_profiles(self) -> None:

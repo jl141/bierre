@@ -700,15 +700,17 @@ async function deleteSelectedProfile() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const offline = document.getElementById("offline").checked;
+  const baseStatus = offline
+    ? "Running offline test…"
+    : "Searching free scholarly sources — this can take 1–3 minutes.";
   saveQueryState();
   saveSettingsState();
   runBtn.disabled = true;
-  setStatus(
-    offline
-      ? "Running offline test…"
-      : "Searching free scholarly sources — this can take 1–3 minutes.",
-    false, !offline
-  );
+  if (offline) {
+    setProgressStatus(baseStatus, { step: 0, total: 0, label: "Starting…" });
+  } else {
+    setProgressStatus(baseStatus, { step: 0, total: 0, label: "Starting search…" });
+  }
 
   try {
     const response = await fetch("/api/run", {
@@ -721,7 +723,7 @@ form.addEventListener("submit", async (event) => {
         settings: collectSettings(),
       }),
     });
-    const data = await response.json();
+    const data = await readRunResponse(response, baseStatus);
     if (!response.ok || data.error) throw new Error(data.error || "Run failed");
     lastResult = data;
     render(data);
@@ -740,9 +742,127 @@ selectedOnly.addEventListener("change", () => {
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function setStatus(text, isError, working) {
-  statusEl.hidden    = false;
+  statusEl.hidden = false;
   statusEl.className = "status" + (isError ? " error" : "");
-  statusEl.innerHTML = escapeHtml(text) + (working ? '<span class="bar"></span>' : "");
+
+  if (!working) {
+    statusEl.textContent = text;
+    return;
+  }
+
+  const parts = ensureWorkingStatusParts();
+  parts.text.textContent = text;
+  parts.progress.textContent = "";
+}
+
+function setProgressStatus(text, progress) {
+  const step = Number(progress?.step);
+  const total = Number(progress?.total);
+  const label = String(progress?.label || "").trim();
+  const hasProgress = Number.isFinite(step) && Number.isFinite(total) && total > 0;
+  const progressText = hasProgress
+    ? `${Math.max(0, step)}/${Math.max(1, total)}${label ? ` ${label}` : ""}`
+    : label;
+
+  statusEl.hidden = false;
+  statusEl.className = "status";
+
+  const parts = ensureWorkingStatusParts();
+  parts.text.textContent = text;
+  parts.progress.textContent = progressText;
+}
+
+function ensureWorkingStatusParts() {
+  let text = statusEl.querySelector(".status-text");
+  let working = statusEl.querySelector(".status-working");
+  let progress = statusEl.querySelector(".status-progress");
+
+  if (text && working && progress) {
+    return { text, progress };
+  }
+
+  statusEl.textContent = "";
+
+  text = document.createElement("span");
+  text.className = "status-text";
+
+  working = document.createElement("span");
+  working.className = "status-working";
+
+  const bar = document.createElement("span");
+  bar.className = "bar";
+
+  progress = document.createElement("span");
+  progress.className = "status-progress";
+
+  working.append(bar, progress);
+  statusEl.append(text, working);
+  return { text, progress };
+}
+
+async function readRunResponse(response, baseStatus) {
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  const isNdjson = contentType.includes("application/x-ndjson");
+  if (!isNdjson || !response.body) {
+    return await response.json();
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let result = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let nl = buf.indexOf("\n");
+    while (nl !== -1) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (line) {
+        try {
+          const event = JSON.parse(line);
+          if (event.type === "progress") {
+            setProgressStatus(baseStatus, event);
+          } else if (event.type === "result") {
+            result = event.result || null;
+          } else if (event.type === "error") {
+            throw new Error(event.error || "Run failed");
+          }
+        } catch {
+          // Ignore malformed lines; keep reading later events.
+        }
+      }
+      nl = buf.indexOf("\n");
+    }
+  }
+
+  buf += decoder.decode();
+  const tail = buf.trim();
+  if (tail) {
+    const lines = tail.split("\n").map(s => s.trim()).filter(Boolean);
+    for (const line of lines) {
+      try {
+        const event = JSON.parse(line);
+        if (event.type === "progress") {
+          setProgressStatus(baseStatus, event);
+        } else if (event.type === "result") {
+          result = event.result || null;
+        } else if (event.type === "error") {
+          throw new Error(event.error || "Run failed");
+        }
+      } catch {
+        // Ignore malformed tail line.
+      }
+    }
+  }
+
+  if (!result) {
+    throw new Error("Run finished without result payload");
+  }
+  return result;
 }
 
 function render(data) {
