@@ -22,8 +22,6 @@ class SearchSettings:
     concurrent_workers: int = 8
     timeout_seconds: int = 20
     enabled_sources: list[str] = field(default_factory=lambda: list(ALL_SOURCES))
-    # Sources whose public pools throttle aggressively are queried one at a time.
-    serial_sources: list[str] = field(default_factory=lambda: ["crossref", "pubmed"])
     # Semantic Scholar is rate-limited hard without a key; cap anonymous queries.
     semantic_scholar_max_queries_without_key: int = 0
     # Optional per-stage HTTP override knobs consumed by SearchContext.http_options.
@@ -39,7 +37,7 @@ class SelectionSettings:
 
 @dataclass
 class Settings:
-    profile: str = "n_halamine"
+    profile: str = "generic"
     contact_email: str = ""
     use_unpaywall: bool = False
     api_keys: dict[str, str] = field(default_factory=dict)

@@ -51,7 +51,6 @@ def _settings_to_dict(s: Settings) -> dict:
             "concurrent_workers": s.search.concurrent_workers,
             "timeout_seconds": s.search.timeout_seconds,
             "enabled_sources": list(s.search.enabled_sources),
-            "serial_sources": list(s.search.serial_sources),
             "semantic_scholar_max_queries_without_key": s.search.semantic_scholar_max_queries_without_key,
         },
         "selection": {

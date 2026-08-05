@@ -13,7 +13,6 @@ search:
   concurrent_workers: 8
   timeout_seconds: 20
   enabled_sources: [openalex, crossref, pubmed, europepmc, semantic_scholar]
-  serial_sources: [crossref, pubmed]
   semantic_scholar_max_queries_without_key: 0
 
   source_http_overrides:

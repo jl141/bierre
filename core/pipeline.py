@@ -16,7 +16,7 @@ from . import dedup, extraction, planner, ranking
 from .config import Settings
 from .models import Paper, RunResult
 from .profiles import DomainProfile, load_profile
-from .sources import REGISTRY, SearchContext
+from .sources import REGISTRY, SearchContext, SourceDispatchState, policy_for
 from .sources import unpaywall
 
 # progress(step, total, label) — optional UI/CLI hook.
@@ -96,9 +96,7 @@ def _mock_papers() -> list[Paper]:
 def _plan_search_tasks(queries: list[str], settings: Settings) -> tuple[list, list, list[str]]:
     """Split (source, query) work into concurrent and serial task lists."""
     search = settings.search
-    has_s2_key = bool(settings.api_key("semantic_scholar"))
-    s2_budget = search.semantic_scholar_max_queries_without_key
-    s2_used = 0
+    dispatch_state = SourceDispatchState()
 
     concurrent: list[tuple[str, str]] = []
     serial: list[tuple[str, str]] = []
@@ -107,13 +105,10 @@ def _plan_search_tasks(queries: list[str], settings: Settings) -> tuple[list, li
         for source in search.enabled_sources:
             if source not in REGISTRY:
                 continue
-            if source == "semantic_scholar" and not has_s2_key:
-                if s2_used >= s2_budget:
-                    continue
-                s2_used += 1
-            run_serial = source in search.serial_sources or (
-                source == "semantic_scholar" and not has_s2_key
-            )
+            policy = policy_for(source)
+            if not policy.allow_dispatch(settings, dispatch_state):
+                continue
+            run_serial = policy.force_serial(settings, dispatch_state)
             (serial if run_serial else concurrent).append((source, query))
             if source not in apis:
                 apis.append(source)

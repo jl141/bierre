@@ -7,13 +7,28 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..config import Settings
 from .. import text
 from ..http import record_error, request_json
 from ..models import Paper
 from .base import SearchContext
+from .policy import SourceDispatchState
 
 URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 FIELDS = "title,authors,year,venue,externalIds,abstract,url,openAccessPdf,citationCount,influentialCitationCount"
+
+
+def allow_dispatch(settings: Settings, state: SourceDispatchState) -> bool:
+    """Gate anonymous calls through a shared per-run source budget."""
+    if settings.api_key("semantic_scholar"):
+        return True
+    return state.consume_budget("semantic_scholar", settings.search.semantic_scholar_max_queries_without_key)
+
+
+def force_serial(settings: Settings, state: SourceDispatchState) -> bool:
+    """Anonymous traffic is queried serially to reduce throttling."""
+    del state
+    return not bool(settings.api_key("semantic_scholar"))
 
 
 def _authors(item: dict) -> str:

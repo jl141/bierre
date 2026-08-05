@@ -2,8 +2,8 @@
 
 A :class:`DomainProfile` describes everything domain-specific about a search:
 which query terms to expand, which buckets papers fall into, which terms to
-down-weight, and which fields to extract. Swapping the profile (``generic`` vs
-``n_halamine``) changes the workflow's behaviour without touching any code.
+down-weight, and which fields to extract. Swapping the profile changes the
+workflow's behaviour without touching any code.
 
 Profiles are plain YAML in the ``profiles/`` directory; see ``generic.yaml`` for
 the documented schema.

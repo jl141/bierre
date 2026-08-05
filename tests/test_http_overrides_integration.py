@@ -19,7 +19,6 @@ def test_yaml_overrides_flow_into_stage_http_options() -> None:
         "profile": "generic",
         "search": {
             "enabled_sources": ["semantic_scholar"],
-            "serial_sources": [],
             "timeout_seconds": 11,
             "semantic_scholar_max_queries_without_key": 1,
             "source_http_overrides": {

@@ -20,7 +20,6 @@ search:
   concurrent_workers: 8
   timeout_seconds: 20
   enabled_sources: [openalex, crossref, pubmed, europepmc, semantic_scholar]
-  serial_sources: [crossref, pubmed]          # queried one-at-a-time to avoid throttling
   semantic_scholar_max_queries_without_key: 0  # anonymous S2 is rate-limited hard
   # Optional per-stage HTTP overrides (advanced):
   # stage names include: openalex, crossref, europepmc, semantic_scholar,

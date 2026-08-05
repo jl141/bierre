@@ -10,13 +10,21 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from ..config import Settings
 from .. import text
 from ..http import record_error, request_json, request_text
 from ..models import Paper
 from .base import SearchContext
+from .policy import SourceDispatchState
 
 ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+
+
+def force_serial(settings: Settings, state: SourceDispatchState) -> bool:
+    """Public PubMed E-utilities are sensitive to bursty fan-out."""
+    del settings, state
+    return True
 
 
 def _text(element: ET.Element | None) -> str:

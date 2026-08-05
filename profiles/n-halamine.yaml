@@ -4,7 +4,7 @@
 # Editing this file re-tunes the search, ranking, buckets and extraction without
 # touching Python. See generic.yaml for the schema documentation.
 
-name: n_halamine
+name: n-halamine
 label: N-halamine antimicrobial coatings
 default_question: >-
   How can N-halamine functional groups be incorporated into biocompatible hydrogel

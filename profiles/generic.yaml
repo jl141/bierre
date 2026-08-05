@@ -3,7 +3,7 @@
 # This is the documented schema for every profile. With no concepts, buckets or
 # off-topic terms, ranking is driven purely by lexical/semantic relevance to the
 # question, so the tool works for any field. Copy this file and fill in the
-# sections to specialise it (see n_halamine.yaml for a worked example).
+# sections to specialise it (see n-halamine.yaml for a worked example).
 
 name: generic
 label: General literature search

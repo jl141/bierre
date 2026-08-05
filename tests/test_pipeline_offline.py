@@ -15,8 +15,11 @@ from core.dedup import deduplicate
 from core.models import Paper
 
 
+def _settings():
+    return Settings.from_dict({"profile": "n-halamine"})
+
 def test_offline_run_ranks_and_selects():
-    result = run_pipeline("N-halamine rechargeable coating", Settings(), offline=True)
+    result = run_pipeline("N-halamine rechargeable coating", _settings(), offline=True)
     assert result.mode == "offline"
     assert len(result.ranked) == 4
     assert result.selected, "expected at least one selected paper"
@@ -26,7 +29,7 @@ def test_offline_run_ranks_and_selects():
 
 
 def test_buckets_are_profile_driven():
-    result = run_pipeline("N-halamine rechargeable coating", Settings(), offline=True)
+    result = run_pipeline("N-halamine rechargeable coating", _settings(), offline=True)
     buckets = {r.paper.title[:18]: r.bucket for r in result.ranked}
     # Silver nanoparticle control has no N-halamine signal -> off-topic fallback.
     silver = next(r for r in result.ranked if "Silver" in r.paper.title)
@@ -39,7 +42,7 @@ def test_buckets_are_profile_driven():
 def test_generic_profile_has_no_domain_bias():
     """The same off-topic paper is not penalised under the generic profile."""
     generic = load_profile("generic")
-    result = run_pipeline("silver nanoparticle hydrogel", Settings(), profile=generic, offline=True)
+    result = run_pipeline("silver nanoparticle hydrogel", _settings(), profile=generic, offline=True)
     for item in result.ranked:
         assert item.bucket == "all"          # only the fallback bucket exists
         assert item.off_topic_penalty == 0.0  # no off-topic list in generic

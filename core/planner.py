@@ -3,8 +3,7 @@
 The question is analysed into tokens, scientific names, phrases and active
 concepts. Concepts and seed query groups come from the loaded
 :class:`DomainProfile`, so the planner is general: the ``generic`` profile
-produces purely question-derived queries, while ``n_halamine`` layers its
-curated query groups on top when the topic is detected.
+produces purely question-derived queries.
 """
 
 from __future__ import annotations
