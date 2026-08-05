@@ -16,7 +16,6 @@ search:
   serial_sources: [crossref, pubmed]
   semantic_scholar_max_queries_without_key: 0
 
-  # Tuned per-stage transport defaults.
   source_http_overrides:
     crossref:
       max_attempts: 2
