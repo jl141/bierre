@@ -1,8 +1,8 @@
-# Copy to config.yaml and pass with --config (CLI) or webapp --config.
+# Copy to config.yaml
 # Every field is optional; omitted fields fall back to the defaults in core/config.py.
 
 # Which domain profile to load (file name in profiles/, without .yaml).
-profile: n_halamine
+profile: generic
 
 # Contact email enables CrossRef/PubMed "polite pools" and Unpaywall lookups.
 contact_email: ""
