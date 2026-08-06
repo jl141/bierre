@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 from contextlib import suppress
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -107,6 +110,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/profiles":
             self._handle_create_profile()
             return
+        if path == "/bierre-ca/api/generate":
+            self._handle_profile_generate()
+            return
         self.send_error(404)
 
     def do_PUT(self) -> None:
@@ -170,6 +176,8 @@ class Handler(BaseHTTPRequestHandler):
         except BrokenPipeError:
             # Client disconnected mid-run; no further write possible.
             return
+        except ProfileValidationError as exc:
+            self._send_json({"error": str(exc)}, status=400)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=400)
         except Exception as exc:  # surface failures to the UI rather than 500-ing silently
@@ -230,6 +238,85 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=400)
         except ProtectedProfileError as exc:
             self._send_json({"error": str(exc)}, status=403)
+
+    def _handle_profile_generate(self) -> None:
+        stream_started = False
+        try:
+            payload = self._read_json()
+            research_description = str(payload.get("research_description") or "").strip()
+            label_hint = str(payload.get("label_hint") or "").strip()
+            if not research_description:
+                raise ProfileValidationError("research_description is required.")
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            stream_started = True
+
+            def emit(event: dict) -> None:
+                self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
+                self.wfile.flush()
+
+            emit({"type": "progress", "step": 1, "total": 3, "label": "Preparing prompt"})
+
+            request_payload = {"research_description": research_description}
+            if label_hint:
+                request_payload["label_hint"] = label_hint
+
+            base_url = os.environ.get("BIERRE_CA_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+            target_url = f"{base_url}/api/generate"
+            req_headers = {"Content-Type": "application/json"}
+            bierre_ca_api_key = (os.environ.get("BIERRE_CA_API_KEY") or "").strip()
+            if bierre_ca_api_key:
+                req_headers["X-API-Key"] = bierre_ca_api_key
+
+            emit({"type": "progress", "step": 2, "total": 3, "label": "Generating profile"})
+
+            request = Request(
+                target_url,
+                data=json.dumps(request_payload).encode("utf-8"),
+                headers=req_headers,
+                method="POST",
+            )
+            with urlopen(request, timeout=75) as response:
+                data = json.loads(response.read().decode("utf-8") or "{}")
+
+            emit({"type": "progress", "step": 3, "total": 3, "label": "Applying draft"})
+            emit({"type": "result", "result": data})
+        except BrokenPipeError:
+            return
+        except HTTPError as exc:
+            detail = "Profile generation failed"
+            try:
+                err_payload = json.loads((exc.read() or b"{}").decode("utf-8"))
+                detail = str(err_payload.get("detail") or err_payload.get("error") or detail)
+            except Exception:
+                detail = str(exc) or detail
+
+            with suppress(BrokenPipeError):
+                if stream_started:
+                    self.wfile.write((json.dumps({"type": "error", "error": detail}, ensure_ascii=False) + "\n").encode("utf-8"))
+                    self.wfile.flush()
+                    return
+            self._send_json({"error": detail}, status=502)
+        except URLError as exc:
+            message = f"Cannot reach bierre-ca service: {exc.reason}"
+            with suppress(BrokenPipeError):
+                if stream_started:
+                    self.wfile.write((json.dumps({"type": "error", "error": message}, ensure_ascii=False) + "\n").encode("utf-8"))
+                    self.wfile.flush()
+                    return
+            self._send_json({"error": message}, status=502)
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, status=400)
+        except Exception as exc:
+            with suppress(BrokenPipeError):
+                if stream_started:
+                    self.wfile.write((json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n").encode("utf-8"))
+                    self.wfile.flush()
+                    return
+            self._send_json({"error": str(exc)}, status=500)
 
     # --- helpers ---
 

@@ -171,7 +171,38 @@
       </div>
 
       <div class="profile-modal-actions">
+        <button type="button" id="profile-ai-open-btn" class="btn-ghost profile-ai-open-btn">Generate Profile with AI</button>
         <button type="submit" id="profile-save-btn">Save profile</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="profile-ai-modal" class="profile-modal profile-ai-modal">
+    <form id="profile-ai-form" class="profile-form" method="dialog" novalidate>
+      <div class="profile-modal-head">
+        <h3>Generate Profile with AI</h3>
+        <button type="button" id="profile-ai-close" class="btn-ghost btn-small">Close</button>
+      </div>
+
+      <p class="profile-modal-note">Describe what you want to research. The generated draft will populate the profile editor for review.</p>
+
+      <div class="profile-grid">
+        <div class="profile-field profile-field-wide">
+          <label for="profile-ai-research">Research description</label>
+          <textarea id="profile-ai-research" rows="7" required placeholder="Describe your topic, scope, and what evidence matters."></textarea>
+        </div>
+      </div>
+
+      <p id="profile-ai-status" class="status" hidden>
+        <span class="status-text"></span>
+        <span class="status-working">
+          <span class="bar"></span>
+          <span class="status-progress"></span>
+        </span>
+      </p>
+
+      <div class="profile-modal-actions">
+        <button type="submit" id="profile-ai-generate-btn">Generate</button>
       </div>
     </form>
   </dialog>

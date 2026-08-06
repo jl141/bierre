@@ -44,6 +44,14 @@ const profileModalTitle = document.getElementById("profile-modal-title");
 const profileModalClose = document.getElementById("profile-modal-close");
 const profileSaveBtn    = document.getElementById("profile-save-btn");
 const profileFormStatus = document.getElementById("profile-form-status");
+const profileAiOpenBtn  = document.getElementById("profile-ai-open-btn");
+
+const profileAiModal       = document.getElementById("profile-ai-modal");
+const profileAiForm        = document.getElementById("profile-ai-form");
+const profileAiCloseBtn    = document.getElementById("profile-ai-close");
+const profileAiGenerateBtn = document.getElementById("profile-ai-generate-btn");
+const profileAiStatus      = document.getElementById("profile-ai-status");
+const profileAiResearchInput = document.getElementById("profile-ai-research");
 
 const profileLabelInput          = document.getElementById("profile-label");
 const profileDefaultQuestionInput = document.getElementById("profile-default-question");
@@ -64,6 +72,7 @@ let serverDefaults = null;
 let profilesMeta = [];
 let activeProfileMode = "create";
 let editingProfileId = null;
+let profileAiGenerating = false;
 
 // ── Persistence helpers ───────────────────────────────────────────────────────
 function loadWidths() {
@@ -143,6 +152,94 @@ function setInlineStatus(el, text, isError) {
   el.hidden = false;
   el.textContent = text;
   el.className = "status" + (isError ? " error" : "");
+}
+
+function ensureStatusParts(statusNode) {
+  let text = statusNode.querySelector(".status-text");
+  let working = statusNode.querySelector(".status-working");
+  let progress = statusNode.querySelector(".status-progress");
+
+  if (text && working && progress) {
+    return { text, progress };
+  }
+
+  statusNode.textContent = "";
+
+  text = document.createElement("span");
+  text.className = "status-text";
+
+  working = document.createElement("span");
+  working.className = "status-working";
+
+  const bar = document.createElement("span");
+  bar.className = "bar";
+
+  progress = document.createElement("span");
+  progress.className = "status-progress";
+
+  working.append(bar, progress);
+  statusNode.append(text, working);
+  return { text, progress };
+}
+
+function setTextStatus(statusNode, text, isError) {
+  if (!statusNode) return;
+  statusNode.hidden = false;
+  statusNode.className = "status" + (isError ? " error" : "");
+
+  const hasParts = statusNode.querySelector(".status-text") && statusNode.querySelector(".status-progress");
+  if (!hasParts) {
+    statusNode.textContent = text;
+    return;
+  }
+
+  const parts = ensureStatusParts(statusNode);
+  parts.text.textContent = text;
+  parts.progress.textContent = "";
+  const working = statusNode.querySelector(".status-working");
+  if (working) working.hidden = true;
+}
+
+function setProgressStatusFor(statusNode, text, progress) {
+  if (!statusNode) return;
+  const step = Number(progress?.step);
+  const total = Number(progress?.total);
+  const label = String(progress?.label || "").trim();
+  const hasProgress = Number.isFinite(step) && Number.isFinite(total) && total > 0;
+  const progressText = hasProgress
+    ? `${Math.max(0, step)}/${Math.max(1, total)}${label ? ` ${label}` : ""}`
+    : label;
+
+  statusNode.hidden = false;
+  statusNode.className = "status";
+
+  const parts = ensureStatusParts(statusNode);
+  parts.text.textContent = text;
+  parts.progress.textContent = progressText;
+  const working = statusNode.querySelector(".status-working");
+  if (working) working.hidden = false;
+}
+
+function clearStatus(statusNode) {
+  if (!statusNode) return;
+  statusNode.hidden = true;
+  statusNode.className = "status";
+  const text = statusNode.querySelector(".status-text");
+  const progress = statusNode.querySelector(".status-progress");
+  if (text && progress) {
+    text.textContent = "";
+    progress.textContent = "";
+    const working = statusNode.querySelector(".status-working");
+    if (working) working.hidden = false;
+    return;
+  }
+  statusNode.textContent = "";
+}
+
+function setStatusWorkingVisible(statusNode, visible) {
+  if (!statusNode) return;
+  const working = statusNode.querySelector(".status-working");
+  if (working) working.hidden = !visible;
 }
 
 // ── Header & colgroup ─────────────────────────────────────────────────────────
@@ -581,6 +678,7 @@ async function openCreateProfileModal() {
   activeProfileMode = "create";
   editingProfileId = null;
   profileModalTitle.textContent = "Create profile";
+  profileAiOpenBtn.hidden = false;
   profileSaveBtn.textContent = "Create profile";
   resetProfileForm(profileTemplate());
   profileModal.showModal();
@@ -597,6 +695,7 @@ async function openEditProfileModal() {
     activeProfileMode = "edit";
     editingProfileId = profileId;
     profileModalTitle.textContent = `Edit profile: ${profileLabel(profileId)}`;
+    profileAiOpenBtn.hidden = true;
     profileSaveBtn.textContent = "Save changes";
     resetProfileForm(data.profile || profileTemplate());
     profileModal.showModal();
@@ -608,8 +707,104 @@ async function openEditProfileModal() {
 }
 
 function closeProfileModal() {
+  if (profileAiGenerating) return;
+  if (profileAiModal?.open) profileAiModal.close();
   profileModal.close();
   setInlineStatus(profileFormStatus, "", false);
+}
+
+function setProfileAiLocked(locked) {
+  profileAiGenerating = locked;
+  profileAiGenerateBtn.disabled = locked;
+  profileAiCloseBtn.disabled = locked;
+  profileAiResearchInput.disabled = locked;
+  profileAiOpenBtn.disabled = locked;
+  profileModalClose.disabled = locked;
+}
+
+function openProfileAiModal() {
+  if (profileAiGenerating) return;
+  clearStatus(profileAiStatus);
+  profileAiResearchInput.value = "";
+  profileAiModal.showModal();
+  requestAnimationFrame(() => profileAiResearchInput.focus());
+}
+
+function closeProfileAiModal() {
+  if (profileAiGenerating) return;
+  profileAiModal.close();
+  clearStatus(profileAiStatus);
+}
+
+function normalizeGeneratedProfile(profile) {
+  return {
+    label: String(profile?.label || "").trim(),
+    default_question: String(profile?.default_question || "").trim(),
+    concepts: Array.isArray(profile?.concepts) ? profile.concepts : [],
+    query_groups: typeof profile?.query_groups === "object" && profile.query_groups && !Array.isArray(profile.query_groups)
+      ? profile.query_groups
+      : {},
+    off_topic_terms: Array.isArray(profile?.off_topic_terms) ? profile.off_topic_terms : [],
+    journal_terms: Array.isArray(profile?.journal_terms) ? profile.journal_terms : [],
+    intents: typeof profile?.intents === "object" && profile.intents && !Array.isArray(profile.intents)
+      ? profile.intents
+      : {},
+    term_groups: typeof profile?.term_groups === "object" && profile.term_groups && !Array.isArray(profile.term_groups)
+      ? profile.term_groups
+      : {},
+    buckets: Array.isArray(profile?.buckets) ? profile.buckets : [],
+    extraction_fields: Array.isArray(profile?.extraction_fields) ? profile.extraction_fields : [],
+  };
+}
+
+function applyGeneratedProfile(profile) {
+  const normalized = normalizeGeneratedProfile(profile);
+  resetProfileForm({ ...profileTemplate(), ...normalized });
+  if (!profileLabelInput.value && profile?.name) {
+    profileLabelInput.value = String(profile.name).replace(/[-_]+/g, " ");
+  }
+  autosizeProfileTextareas();
+}
+
+async function generateProfileFromResearch(event) {
+  event.preventDefault();
+  const researchDescription = String(profileAiResearchInput.value || "").trim();
+  if (!researchDescription) {
+    setTextStatus(profileAiStatus, "Research description is required.", true);
+    return;
+  }
+
+  const labelHint = String(profileLabelInput.value || "").trim();
+  const payload = { research_description: researchDescription };
+  if (labelHint) payload.label_hint = labelHint;
+
+  const baseStatus = "Generating profile draft...";
+  setProfileAiLocked(true);
+  setProgressStatusFor(profileAiStatus, baseStatus, { step: 0, total: 0, label: "Starting..." });
+
+  try {
+    const response = await fetch("/bierre-ca/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const generatedProfile = await readRunResponse(response, baseStatus, {
+      onProgress: (progressEvent) => setProgressStatusFor(profileAiStatus, baseStatus, progressEvent),
+      onComplete: () => setStatusWorkingVisible(profileAiStatus, false),
+    });
+    if (!response.ok || generatedProfile?.error) {
+      throw new Error(generatedProfile?.error || "Profile generation failed");
+    }
+
+    applyGeneratedProfile(generatedProfile);
+  } catch (err) {
+    setTextStatus(profileAiStatus, `Error: ${err.message}`, true);
+  } finally {
+    setProfileAiLocked(false);
+    closeProfileAiModal();
+    setInlineStatus(profileFormStatus, "AI profile draft loaded. Review and save.", false);
+    profileLabelInput.focus();
+  }
 }
 
 function collectProfilePayload() {
@@ -723,7 +918,9 @@ form.addEventListener("submit", async (event) => {
         settings: collectSettings(),
       }),
     });
-    const data = await readRunResponse(response, baseStatus);
+    const data = await readRunResponse(response, baseStatus, {
+      onComplete: () => setStatusWorkingVisible(statusEl, false),
+    });
     if (!response.ok || data.error) throw new Error(data.error || "Run failed");
     lastResult = data;
     render(data);
@@ -742,69 +939,35 @@ selectedOnly.addEventListener("change", () => {
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function setStatus(text, isError, working) {
-  statusEl.hidden = false;
-  statusEl.className = "status" + (isError ? " error" : "");
-
   if (!working) {
-    statusEl.textContent = text;
+    setTextStatus(statusEl, text, isError);
     return;
   }
-
-  const parts = ensureWorkingStatusParts();
-  parts.text.textContent = text;
-  parts.progress.textContent = "";
+  setProgressStatusFor(statusEl, text, { step: 0, total: 0, label: "" });
 }
 
 function setProgressStatus(text, progress) {
-  const step = Number(progress?.step);
-  const total = Number(progress?.total);
-  const label = String(progress?.label || "").trim();
-  const hasProgress = Number.isFinite(step) && Number.isFinite(total) && total > 0;
-  const progressText = hasProgress
-    ? `${Math.max(0, step)}/${Math.max(1, total)}${label ? ` ${label}` : ""}`
-    : label;
-
-  statusEl.hidden = false;
-  statusEl.className = "status";
-
-  const parts = ensureWorkingStatusParts();
-  parts.text.textContent = text;
-  parts.progress.textContent = progressText;
+  setProgressStatusFor(statusEl, text, progress);
 }
 
-function ensureWorkingStatusParts() {
-  let text = statusEl.querySelector(".status-text");
-  let working = statusEl.querySelector(".status-working");
-  let progress = statusEl.querySelector(".status-progress");
+async function readRunResponse(response, baseStatus, options = {}) {
+  const onProgress = typeof options.onProgress === "function"
+    ? options.onProgress
+    : (event) => setProgressStatus(baseStatus, event);
+  const onComplete = typeof options.onComplete === "function"
+    ? options.onComplete
+    : null;
 
-  if (text && working && progress) {
-    return { text, progress };
-  }
+  const complete = (payload) => {
+    if (onComplete) onComplete(payload);
+  };
 
-  statusEl.textContent = "";
-
-  text = document.createElement("span");
-  text.className = "status-text";
-
-  working = document.createElement("span");
-  working.className = "status-working";
-
-  const bar = document.createElement("span");
-  bar.className = "bar";
-
-  progress = document.createElement("span");
-  progress.className = "status-progress";
-
-  working.append(bar, progress);
-  statusEl.append(text, working);
-  return { text, progress };
-}
-
-async function readRunResponse(response, baseStatus) {
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
   const isNdjson = contentType.includes("application/x-ndjson");
   if (!isNdjson || !response.body) {
-    return await response.json();
+    const data = await response.json();
+    complete({ ok: !data?.error, result: data });
+    return data;
   }
 
   const reader = response.body.getReader();
@@ -822,17 +985,19 @@ async function readRunResponse(response, baseStatus) {
       const line = buf.slice(0, nl).trim();
       buf = buf.slice(nl + 1);
       if (line) {
+        let event = null;
         try {
-          const event = JSON.parse(line);
-          if (event.type === "progress") {
-            setProgressStatus(baseStatus, event);
-          } else if (event.type === "result") {
-            result = event.result || null;
-          } else if (event.type === "error") {
-            throw new Error(event.error || "Run failed");
-          }
+          event = JSON.parse(line);
         } catch {
           // Ignore malformed lines; keep reading later events.
+        }
+        if (event?.type === "progress") {
+          onProgress(event);
+        } else if (event?.type === "result") {
+          result = event.result || null;
+        } else if (event?.type === "error") {
+          complete({ ok: false, error: event.error || "Run failed" });
+          throw new Error(event.error || "Run failed");
         }
       }
       nl = buf.indexOf("\n");
@@ -844,24 +1009,28 @@ async function readRunResponse(response, baseStatus) {
   if (tail) {
     const lines = tail.split("\n").map(s => s.trim()).filter(Boolean);
     for (const line of lines) {
+      let event = null;
       try {
-        const event = JSON.parse(line);
-        if (event.type === "progress") {
-          setProgressStatus(baseStatus, event);
-        } else if (event.type === "result") {
-          result = event.result || null;
-        } else if (event.type === "error") {
-          throw new Error(event.error || "Run failed");
-        }
+        event = JSON.parse(line);
       } catch {
         // Ignore malformed tail line.
+      }
+      if (event?.type === "progress") {
+        onProgress(event);
+      } else if (event?.type === "result") {
+        result = event.result || null;
+      } else if (event?.type === "error") {
+        complete({ ok: false, error: event.error || "Run failed" });
+        throw new Error(event.error || "Run failed");
       }
     }
   }
 
   if (!result) {
+    complete({ ok: false, error: "Run finished without result payload" });
     throw new Error("Run finished without result payload");
   }
+  complete({ ok: true, result });
   return result;
 }
 
@@ -1305,12 +1474,28 @@ profileSelect.addEventListener("change", () => {
 profileCreateBtn.addEventListener("click", openCreateProfileModal);
 profileEditBtn.addEventListener("click", openEditProfileModal);
 profileDeleteBtn.addEventListener("click", deleteSelectedProfile);
+profileAiOpenBtn.addEventListener("click", openProfileAiModal);
+profileAiForm.addEventListener("submit", generateProfileFromResearch);
+profileAiCloseBtn.addEventListener("click", closeProfileAiModal);
+profileAiModal.addEventListener("cancel", (event) => {
+  if (profileAiGenerating) {
+    event.preventDefault();
+    return;
+  }
+  clearStatus(profileAiStatus);
+});
 profileForm.addEventListener("submit", saveProfileFromModal);
 profileForm.addEventListener("input", (event) => {
   if (event.target instanceof HTMLTextAreaElement) autosizeTextarea(event.target);
 });
 profileModalClose.addEventListener("click", closeProfileModal);
-profileModal.addEventListener("cancel", () => setInlineStatus(profileFormStatus, "", false));
+profileModal.addEventListener("cancel", (event) => {
+  if (profileAiGenerating) {
+    event.preventDefault();
+    return;
+  }
+  setInlineStatus(profileFormStatus, "", false);
+});
 profileModal.addEventListener("close", () => hideHoverTip());
 
 buildColPicker();

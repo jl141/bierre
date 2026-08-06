@@ -807,7 +807,21 @@ tbody tr { transition: background 0.1s; }
 .profile-modal-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   padding-top: 4px;
+}
+
+.profile-ai-open-btn {
+  margin-right: auto;
+}
+
+.profile-ai-modal {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.profile-ai-modal .profile-field textarea {
+  min-height: 140px;
 }
 
 @media (max-width: 760px) {
