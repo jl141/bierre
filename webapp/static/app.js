@@ -8,7 +8,7 @@ const COLUMNS = [
   { id: "rank",      label: "#",         num: true,  minWidth: 36,  defaultWidth: 48  },
   { id: "relevance", label: "Relevance", num: true,  minWidth: 90,  defaultWidth: 90  },
   { id: "citations", label: "Citations", num: true,  minWidth: 80,  defaultWidth: 80  },
-  { id: "impact",    label: "Impact",    tooltip: "Influential citations (Semantic Scholar)",
+  { id: "impact",    label: "Impact",    tooltip: "Journal Impact Factor",
                                          num: true,  minWidth: 67,  defaultWidth: 67  },
   { id: "bucket",    label: "Bucket",    num: false, minWidth: 96,  defaultWidth: 108 },
   { id: "status",    label: "Status",    num: false, minWidth: 96,  defaultWidth: 108 },
@@ -915,7 +915,7 @@ function buildRow(p) {
         td.textContent = p.citation_count != null ? p.citation_count.toLocaleString() : "—";
         break;
       case "impact":
-        td.textContent = p.influential_citation_count != null ? p.influential_citation_count.toLocaleString() : "—";
+        td.textContent = p.impact_factor != null ? Number(p.impact_factor).toFixed(1) : "—";
         break;
       case "paper":
         td.innerHTML = `

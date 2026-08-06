@@ -29,6 +29,7 @@ class Paper:
     oa_status: str = ""
     citation_count: int | None = None
     influential_citation_count: int | None = None
+    impact_factor: float | None = None
     # Provenance: which source(s)/query(ies) produced this record (merged on dedup).
     sources: list[str] = field(default_factory=list)
     search_queries: list[str] = field(default_factory=list)
@@ -95,6 +96,7 @@ class RankedPaper:
             "snippet": self.snippet,
             "citation_count": p.citation_count,
             "influential_citation_count": p.influential_citation_count,
+            "impact_factor": p.impact_factor,
         }
 
 

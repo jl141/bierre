@@ -16,6 +16,7 @@ from . import dedup, extraction, planner, ranking
 from .config import Settings
 from .models import Paper, RunResult
 from .profiles import DomainProfile, load_profile
+from .util.journal_rankings import impact_factor_for_journal
 from .sources import REGISTRY, SearchContext, SourceDispatchState, policy_for
 from .sources import unpaywall
 
@@ -141,6 +142,9 @@ def run_pipeline(
     if progress:
         progress(2, 4, "Deduplicating and ranking")
     deduped = dedup.deduplicate(papers)
+    for paper in deduped:
+        if paper.impact_factor is None:
+            paper.impact_factor = impact_factor_for_journal(paper.journal)
     ranked = ranking.rank_and_select(deduped, question, profile, settings)
 
     selected = [r for r in ranked if r.selected]

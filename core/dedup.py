@@ -24,6 +24,8 @@ def _merge(into: Paper, other: Paper) -> None:
         into.citation_count = other.citation_count
     if into.influential_citation_count is None and other.influential_citation_count is not None:
         into.influential_citation_count = other.influential_citation_count
+    if into.impact_factor is None and other.impact_factor is not None:
+        into.impact_factor = other.impact_factor
 
 
 def deduplicate(papers: list[Paper]) -> list[Paper]:
