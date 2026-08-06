@@ -23,15 +23,14 @@ from core import (  # noqa: E402
     SearchService,
     Settings,
     build_profile_repository,
-    load_profile,
 )
 from core.repositories.profile_repository import (  # noqa: E402
+    DomainProfile,
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileValidationError,
     ProtectedProfileError,
 )
-from core.profiles import DomainProfile  # noqa: E402
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
@@ -143,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
             question = str(payload.get("question") or "").strip()
             if not question:
                 # Preserve prior UX where empty question falls back to profile default.
-                question = load_profile(profile_id).default_question
+                question = str(self.profile_service.get_profile(profile_id).get("default_question") or "").strip()
             request = RunSearchRequest(
                 question=question,
                 profile_id=profile_id,
@@ -282,9 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     Handler.settings = Settings.load(args.config)
     repository = build_profile_repository(Handler.settings)
     Handler.profile_service = ProfileService(repository=repository)
-    profile_loader = load_profile
-    if Handler.settings.profile_repository.mode == "remote":
-        profile_loader = _profile_loader_from_service(Handler.profile_service)
+    profile_loader = _profile_loader_from_service(Handler.profile_service)
     Handler.search_service = SearchService(base_settings=Handler.settings, profile_loader=profile_loader)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"bierre web UI on http://{args.host}:{args.port}  (Ctrl+C to stop)")

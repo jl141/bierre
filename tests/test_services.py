@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.config import Settings
 from core.contracts.run_search import RunSearchRequest
 from core.models import RunResult
-from core.profiles import DomainProfile
+from core.repositories.profile_repository import DomainProfile
 from core.repositories.profile_repository import ProfileSummary
 from core.services.profile_service import ProfileService
 from core.services.search_service import SearchService

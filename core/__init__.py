@@ -3,7 +3,7 @@
 Public surface kept small on purpose — adapters (CLI, web, future API/service)
 should depend only on these names:
 
-    from core import run_pipeline, Settings, load_profile, available_profiles
+    from core import run_pipeline, Settings
 """
 
 from __future__ import annotations
@@ -11,8 +11,8 @@ from __future__ import annotations
 from .config import Settings
 from .contracts import RunSearchRequest, RunSearchResponse
 from .pipeline import run_pipeline
-from .profiles import DomainProfile, available_profiles, load_profile
 from .repositories import (
+    DomainProfile,
     HttpProfileRepository,
     ProfileRepository,
     YamlProfileRepository,
@@ -24,8 +24,6 @@ __all__ = [
     "run_pipeline",
     "Settings",
     "DomainProfile",
-    "load_profile",
-    "available_profiles",
     "RunSearchRequest",
     "RunSearchResponse",
     "ProfileRepository",

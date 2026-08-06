@@ -15,8 +15,8 @@ from __future__ import annotations
 from . import text
 from ..config import Settings
 from ..models import Paper, RankedPaper
+from ..repositories.profile_repository import Bucket, DomainProfile
 from .planner import analyze_question
-from ..profiles import Bucket, DomainProfile
 
 # --- individual relevance signals -------------------------------------------------
 

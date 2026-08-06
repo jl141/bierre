@@ -17,7 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import RunSearchRequest, SearchService, Settings, available_profiles, load_profile  # noqa: E402
+from core import ProfileService, RunSearchRequest, SearchService, Settings, build_profile_repository  # noqa: E402
+from core.repositories.profile_repository import DomainProfile  # noqa: E402
 
 
 class _ConsoleProgress:
@@ -49,9 +50,15 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings.load(args.config)
     if args.profile:
         settings.profile = args.profile
-    service = SearchService(base_settings=settings)
+    profile_service = ProfileService(repository=build_profile_repository(settings))
+
+    def _profile_loader(profile_id: str) -> DomainProfile:
+        return DomainProfile.from_dict(profile_service.get_profile(profile_id))
+
+    service = SearchService(base_settings=settings, profile_loader=_profile_loader)
     # Keep legacy CLI behavior: empty --question falls back to profile default.
-    question = str(args.question or "").strip() or load_profile(settings.profile).default_question
+    profile = _profile_loader(settings.profile)
+    question = str(args.question or "").strip() or profile.default_question
 
     response = service.run(
         RunSearchRequest(
@@ -66,8 +73,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Question: {response.question}")
     print(f"Found {response.counts.get('found', 0)} papers, selected {response.counts.get('selected', 0)}.")
     print(f"Sources used: {', '.join(response.apis_used) or 'none'}")
-    if available_profiles():
-        print(f"(Available profiles: {', '.join(available_profiles())})")
+    available = [item.profile_id for item in profile_service.list_profiles()]
+    if available:
+        print(f"(Available profiles: {', '.join(available)})")
     print("\nTop selected papers:")
     selected = [paper for paper in response.papers if paper.get("selected")]
     for item in selected[:10]:

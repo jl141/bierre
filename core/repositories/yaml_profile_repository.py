@@ -9,8 +9,8 @@ import unicodedata
 
 import yaml
 
-from ..profiles import DomainProfile, PROFILES_DIR
 from .profile_repository import (
+    DomainProfile,
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileRepository,
@@ -18,6 +18,8 @@ from .profile_repository import (
     ProfileValidationError,
     ProtectedProfileError,
 )
+
+PROFILES_DIR = Path(__file__).resolve().parent.parent.parent / "profiles"
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _PROTECTED_IDS = {"generic", "n-halamine"}

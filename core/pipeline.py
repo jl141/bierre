@@ -15,7 +15,8 @@ from typing import Callable
 from .util import planner
 from .config import Settings
 from .models import Paper, RunResult
-from .profiles import DomainProfile, load_profile
+from .repositories.profile_repository import DomainProfile
+from .repositories.yaml_profile_repository import YamlProfileRepository
 from .util import dedup, extraction, ranking
 from .util.journal_rankings import impact_factor_for_journal
 from .sources import REGISTRY, SearchContext, SourceDispatchState, policy_for
@@ -23,6 +24,11 @@ from .sources import unpaywall
 
 # progress(step, total, label) — optional UI/CLI hook.
 ProgressCallback = Callable[[int, int, str], None]
+
+
+def _load_profile_from_repository(profile_id: str) -> DomainProfile:
+    payload = YamlProfileRepository().get_profile(profile_id)
+    return DomainProfile.from_dict(payload)
 
 
 def _now() -> str:
@@ -126,7 +132,7 @@ def run_pipeline(
 ) -> RunResult:
     """Execute one run and return a structured :class:`RunResult`."""
     settings = settings or Settings()
-    profile = profile or load_profile(settings.profile)
+    profile = profile or _load_profile_from_repository(settings.profile)
     question = question.strip() or profile.default_question
     run_id = f"run_{uuid.uuid4().hex[:10]}"
 

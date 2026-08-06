@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import text
-from ..profiles import DomainProfile
+from ..repositories.profile_repository import DomainProfile
 
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "by", "can",

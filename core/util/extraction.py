@@ -12,7 +12,7 @@ import re
 
 from . import text
 from ..models import EvidenceRow, RankedPaper
-from ..profiles import DomainProfile, ExtractionField
+from ..repositories.profile_repository import DomainProfile, ExtractionField
 
 _NUMERIC = re.compile(r"\d+(\.\d+)?\s*(wt%|%|ppm|mg|log|logs|cfu|cycles?|min|h|hours?)?", re.I)
 

@@ -3,6 +3,10 @@
 from .factory import build_profile_repository
 from .http_profile_repository import HttpProfileRepository
 from .profile_repository import (
+	Bucket,
+	Concept,
+	DomainProfile,
+	ExtractionField,
 	ProfileConflictError,
 	ProfileNotFoundError,
 	ProfileRepository,
@@ -11,12 +15,17 @@ from .profile_repository import (
 	ProfileValidationError,
 	ProtectedProfileError,
 )
-from .yaml_profile_repository import YamlProfileRepository
+from .yaml_profile_repository import PROFILES_DIR, YamlProfileRepository
 
 __all__ = [
 	"ProfileRepository",
 	"ProfileSummary",
 	"ProfileStoreError",
+	"Concept",
+	"Bucket",
+	"ExtractionField",
+	"DomainProfile",
+	"PROFILES_DIR",
 	"ProfileValidationError",
 	"ProfileNotFoundError",
 	"ProfileConflictError",

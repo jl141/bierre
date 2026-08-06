@@ -10,9 +10,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import Settings, load_profile, run_pipeline
+from core import Settings, run_pipeline
 from core.util.dedup import deduplicate
 from core.models import Paper
+from core.repositories.profile_repository import DomainProfile
+from core.repositories.yaml_profile_repository import YamlProfileRepository
 
 
 def _settings():
@@ -41,7 +43,7 @@ def test_buckets_are_profile_driven():
 
 def test_generic_profile_has_no_domain_bias():
     """The same off-topic paper is not penalised under the generic profile."""
-    generic = load_profile("generic")
+    generic = DomainProfile.from_dict(YamlProfileRepository().get_profile("generic"))
     result = run_pipeline("silver nanoparticle hydrogel", _settings(), profile=generic, offline=True)
     for item in result.ranked:
         assert item.bucket == "all"          # only the fallback bucket exists

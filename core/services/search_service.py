@@ -11,7 +11,13 @@ from ..config import Settings
 from ..contracts.run_search import RunSearchRequest, RunSearchResponse, map_run_result_to_response
 from ..models import RunResult
 from ..pipeline import ProgressCallback, run_pipeline
-from ..profiles import DomainProfile, load_profile
+from ..repositories.profile_repository import DomainProfile
+from ..repositories.yaml_profile_repository import YamlProfileRepository
+
+
+def _load_profile_from_repository(profile_id: str) -> DomainProfile:
+    payload = YamlProfileRepository().get_profile(profile_id)
+    return DomainProfile.from_dict(payload)
 
 
 @dataclass
@@ -19,7 +25,7 @@ class SearchService:
     """Single run/search entrypoint used by all adapters."""
 
     base_settings: Settings
-    profile_loader: Callable[[str], DomainProfile] = load_profile
+    profile_loader: Callable[[str], DomainProfile] = _load_profile_from_repository
     pipeline_runner: Callable[..., RunResult] = run_pipeline
 
     def run(self, request: RunSearchRequest, progress: ProgressCallback | None = None) -> RunSearchResponse:
