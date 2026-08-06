@@ -12,7 +12,12 @@ from .config import Settings
 from .contracts import RunSearchRequest, RunSearchResponse
 from .pipeline import run_pipeline
 from .profiles import DomainProfile, available_profiles, load_profile
-from .repositories import ProfileRepository, YamlProfileRepository
+from .repositories import (
+    HttpProfileRepository,
+    ProfileRepository,
+    YamlProfileRepository,
+    build_profile_repository,
+)
 from .services import ProfileService, SearchService
 
 __all__ = [
@@ -25,6 +30,8 @@ __all__ = [
     "RunSearchResponse",
     "ProfileRepository",
     "YamlProfileRepository",
+    "HttpProfileRepository",
+    "build_profile_repository",
     "ProfileService",
     "SearchService",
 ]

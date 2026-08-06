@@ -36,6 +36,17 @@ class SelectionSettings:
 
 
 @dataclass
+class ProfileRepositorySettings:
+    mode: str = "local"
+    base_url: str = ""
+    timeout_seconds: int = 20
+    max_attempts: int = 3
+    backoff_base_seconds: float = 0.5
+    backoff_max_seconds: float = 4.0
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class Settings:
     profile: str = "generic"
     contact_email: str = ""
@@ -43,6 +54,7 @@ class Settings:
     api_keys: dict[str, str] = field(default_factory=dict)
     search: SearchSettings = field(default_factory=SearchSettings)
     selection: SelectionSettings = field(default_factory=SelectionSettings)
+    profile_repository: ProfileRepositorySettings = field(default_factory=ProfileRepositorySettings)
 
     def api_key(self, source: str) -> str:
         return str(self.api_keys.get(source) or "").strip()
@@ -52,6 +64,7 @@ class Settings:
         data = data or {}
         search = {**(data.get("search") or {})}
         selection = {**(data.get("selection") or {})}
+        profile_repository = {**(data.get("profile_repository") or {})}
         return cls(
             profile=data.get("profile", cls.profile),
             contact_email=str(data.get("contact_email") or "").strip(),
@@ -60,6 +73,13 @@ class Settings:
             search=SearchSettings(**{k: v for k, v in search.items() if k in SearchSettings.__annotations__}),
             selection=SelectionSettings(
                 **{k: v for k, v in selection.items() if k in SelectionSettings.__annotations__}
+            ),
+            profile_repository=ProfileRepositorySettings(
+                **{
+                    k: v
+                    for k, v in profile_repository.items()
+                    if k in ProfileRepositorySettings.__annotations__
+                }
             ),
         )
 

@@ -23,13 +23,21 @@ from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import ProfileService, RunSearchRequest, SearchService, Settings, load_profile  # noqa: E402
+from core import (  # noqa: E402
+    ProfileService,
+    RunSearchRequest,
+    SearchService,
+    Settings,
+    build_profile_repository,
+    load_profile,
+)
 from core.profile_store import (  # noqa: E402
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileValidationError,
     ProtectedProfileError,
 )
+from core.profiles import DomainProfile  # noqa: E402
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 _CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
@@ -54,7 +62,23 @@ def _settings_to_dict(s: Settings) -> dict:
             "top_n": s.selection.top_n,
             "min_relevance": s.selection.min_relevance,
         },
+        "profile_repository": {
+            "mode": s.profile_repository.mode,
+            "base_url": s.profile_repository.base_url,
+            "timeout_seconds": s.profile_repository.timeout_seconds,
+            "max_attempts": s.profile_repository.max_attempts,
+            "backoff_base_seconds": s.profile_repository.backoff_base_seconds,
+            "backoff_max_seconds": s.profile_repository.backoff_max_seconds,
+        },
     }
+
+
+def _profile_loader_from_service(profile_service: ProfileService):
+    def _loader(profile_id: str) -> DomainProfile:
+        payload = profile_service.get_profile(profile_id)
+        return DomainProfile.from_dict({**payload, "name": profile_id})
+
+    return _loader
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -262,8 +286,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     Handler.settings = Settings.load(args.config)
-    Handler.search_service = SearchService(base_settings=Handler.settings)
-    Handler.profile_service = ProfileService()
+    repository = build_profile_repository(Handler.settings)
+    Handler.profile_service = ProfileService(repository=repository)
+    profile_loader = load_profile
+    if Handler.settings.profile_repository.mode == "remote":
+        profile_loader = _profile_loader_from_service(Handler.profile_service)
+    Handler.search_service = SearchService(base_settings=Handler.settings, profile_loader=profile_loader)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"bierre web UI on http://{args.host}:{args.port}  (Ctrl+C to stop)")
     try:
