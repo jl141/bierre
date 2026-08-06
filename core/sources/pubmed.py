@@ -11,8 +11,8 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from ..config import Settings
-from .. import text
-from ..http import record_error, request_json, request_text
+from ..util import text
+from ..util.http import record_error, request_json, request_text
 from ..models import Paper
 from .base import SearchContext
 from .policy import SourceDispatchState

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.http import request_json, request_text
+from bierre.core.util.http import request_json, request_text
 from core.sources import openalex, pubmed, semantic_scholar
 from core.sources.base import SearchContext
 

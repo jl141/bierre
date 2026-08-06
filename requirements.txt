@@ -2,8 +2,7 @@
 requests>=2.31.0
 PyYAML>=6.0.0
 
-# Optional, recommended: better relevance ranking. The pipeline degrades
-# gracefully to token-overlap scoring if any of these are missing.
+# Optional but recommended: better relevance ranking.
 scikit-learn>=1.3.0
 rank-bm25>=0.2.2
 rapidfuzz>=3.0.0

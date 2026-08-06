@@ -9,8 +9,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .. import text
-from ..http import record_error, request_json
+from ..util import text
+from ..util.http import record_error, request_json
 from ..models import Paper
 from .base import SearchContext
 

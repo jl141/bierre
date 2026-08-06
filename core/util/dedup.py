@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from . import text
-from .models import Paper
+from .util import text
+from ..models import Paper
 
 
 def _merge(into: Paper, other: Paper) -> None:

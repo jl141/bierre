@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from .. import text
+from . import text
 
 _RANKINGS_FILE = Path(__file__).resolve().with_name("ooir-journal-rankings-2025.tsv")
 

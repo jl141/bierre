@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import re
 
-from . import text
-from .models import EvidenceRow, RankedPaper
-from .profiles import DomainProfile, ExtractionField
+from .util import text
+from ..models import EvidenceRow, RankedPaper
+from ..profiles import DomainProfile, ExtractionField
 
 _NUMERIC = re.compile(r"\d+(\.\d+)?\s*(wt%|%|ppm|mg|log|logs|cfu|cycles?|min|h|hours?)?", re.I)
 

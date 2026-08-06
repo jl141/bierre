@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import Settings, load_profile, run_pipeline
-from core.dedup import deduplicate
+from bierre.core.util.dedup import deduplicate
 from core.models import Paper
 
 

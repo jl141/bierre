@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .. import text
-from ..http import request_json
+from ..util import text
+from ..util.http import request_json
 from ..models import Paper
 from .base import SearchContext
 

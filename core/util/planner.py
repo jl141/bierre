@@ -11,8 +11,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-from . import text
-from .profiles import DomainProfile
+from .util import text
+from ..profiles import DomainProfile
 
 _STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "by", "can",

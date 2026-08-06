@@ -12,11 +12,11 @@ token-overlap estimate so the pipeline still runs.
 
 from __future__ import annotations
 
-from . import text
-from .config import Settings
-from .models import Paper, RankedPaper
+from .util import text
+from ..config import Settings
+from ..models import Paper, RankedPaper
 from .planner import analyze_question
-from .profiles import Bucket, DomainProfile
+from ..profiles import Bucket, DomainProfile
 
 # --- individual relevance signals -------------------------------------------------
 

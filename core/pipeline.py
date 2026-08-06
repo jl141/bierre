@@ -12,10 +12,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Callable
 
-from . import dedup, extraction, planner, ranking
+from .util import planner
 from .config import Settings
 from .models import Paper, RunResult
 from .profiles import DomainProfile, load_profile
+from .util import dedup, extraction, ranking
 from .util.journal_rankings import impact_factor_for_journal
 from .sources import REGISTRY, SearchContext, SourceDispatchState, policy_for
 from .sources import unpaywall
