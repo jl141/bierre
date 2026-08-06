@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from .util import text
+from . import text
 from ..models import EvidenceRow, RankedPaper
 from ..profiles import DomainProfile, ExtractionField
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .. import text
+from ..util import text
 from ..util.http import request_json
 from ..models import Paper
 from .base import SearchContext

@@ -17,7 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import Settings, available_profiles, load_profile, run_pipeline  # noqa: E402
+from core import RunSearchRequest, SearchService, Settings, available_profiles, load_profile  # noqa: E402
 
 
 class _ConsoleProgress:
@@ -49,30 +49,37 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings.load(args.config)
     if args.profile:
         settings.profile = args.profile
-    profile = load_profile(settings.profile)
+    service = SearchService(base_settings=settings)
+    # Keep legacy CLI behavior: empty --question falls back to profile default.
+    question = str(args.question or "").strip() or load_profile(settings.profile).default_question
 
-    result = run_pipeline(
-        question=args.question,
-        settings=settings,
-        profile=profile,
-        offline=args.offline,
+    response = service.run(
+        RunSearchRequest(
+            question=question,
+            profile_id=settings.profile,
+            offline=args.offline,
+        ),
         progress=None if args.quiet else _ConsoleProgress(),
     )
 
-    print(f"\nProfile: {result.profile}  |  Mode: {result.mode}  |  Run: {result.run_id}")
-    print(f"Question: {result.question}")
-    print(f"Found {len(result.ranked)} papers, selected {len(result.selected)}.")
-    print(f"Sources used: {', '.join(result.apis_used) or 'none'}")
+    print(f"\nProfile: {response.profile_id}  |  Mode: {response.mode}  |  Run: {response.run_id}")
+    print(f"Question: {response.question}")
+    print(f"Found {response.counts.get('found', 0)} papers, selected {response.counts.get('selected', 0)}.")
+    print(f"Sources used: {', '.join(response.apis_used) or 'none'}")
     if available_profiles():
         print(f"(Available profiles: {', '.join(available_profiles())})")
     print("\nTop selected papers:")
-    for item in result.selected[:10]:
-        print(f"  [{item.relevance:5.1f}%] {item.bucket_label:<28} {item.paper.title[:70]}")
-    if result.errors:
-        print(f"\n{len(result.errors)} warning(s) recorded (non-fatal).")
+    selected = [paper for paper in response.papers if paper.get("selected")]
+    for item in selected[:10]:
+        print(
+            f"  [{float(item.get('relevance_percent', 0.0)):5.1f}%] "
+            f"{str(item.get('bucket', '')):<28} {str(item.get('title', ''))[:70]}"
+        )
+    if response.errors:
+        print(f"\n{len(response.errors)} warning(s) recorded (non-fatal).")
 
     if args.json:
-        args.json.write_text(json.dumps(result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        args.json.write_text(json.dumps(response.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\nWrote {args.json}")
     return 0
 

@@ -23,17 +23,12 @@ from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core import Settings, load_profile, run_pipeline  # noqa: E402
+from core import ProfileService, RunSearchRequest, SearchService, Settings, load_profile  # noqa: E402
 from core.profile_store import (  # noqa: E402
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileValidationError,
     ProtectedProfileError,
-    create_profile,
-    delete_profile,
-    get_profile,
-    list_profiles,
-    update_profile,
 )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -52,6 +47,7 @@ def _settings_to_dict(s: Settings) -> dict:
             "timeout_seconds": s.search.timeout_seconds,
             "enabled_sources": list(s.search.enabled_sources),
             "semantic_scholar_max_queries_without_key": s.search.semantic_scholar_max_queries_without_key,
+            "source_http_overrides": dict(s.search.source_http_overrides),
         },
         "selection": {
             "enabled": s.selection.enabled,
@@ -61,23 +57,11 @@ def _settings_to_dict(s: Settings) -> dict:
     }
 
 
-def _merge_settings(base: Settings, overrides: dict) -> Settings:
-    """Return a new Settings that is *base* deep-merged with *overrides*."""
-    if not overrides:
-        return base
-    merged = _settings_to_dict(base)
-    merged["profile"] = base.profile
-    for key, val in overrides.items():
-        if key in ("search", "selection", "api_keys") and isinstance(val, dict):
-            merged.setdefault(key, {}).update(val)
-        else:
-            merged[key] = val
-    return Settings.from_dict(merged)
-
-
 class Handler(BaseHTTPRequestHandler):
     # Read-only config shared by all requests; set in main().
     settings: Settings = Settings()
+    search_service: SearchService = SearchService(base_settings=settings)
+    profile_service: ProfileService = ProfileService()
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
@@ -134,10 +118,22 @@ class Handler(BaseHTTPRequestHandler):
         stream_started = False
         try:
             payload = self._read_json()
-            settings = _merge_settings(self.settings, payload.get("settings") or {})
-            profile = load_profile(payload.get("profile") or self.settings.profile)
-            question = str(payload.get("question", ""))
-            offline = bool(payload.get("offline"))
+            settings_overrides = payload.get("settings_overrides")
+            if settings_overrides is None:
+                settings_overrides = payload.get("settings") or {}
+            profile_id = str(payload.get("profile_id") or payload.get("profile") or self.settings.profile).strip()
+            question = str(payload.get("question") or "").strip()
+            if not question:
+                # Preserve prior UX where empty question falls back to profile default.
+                question = load_profile(profile_id).default_question
+            request = RunSearchRequest(
+                question=question,
+                profile_id=profile_id,
+                offline=bool(payload.get("offline")),
+                settings_overrides=dict(settings_overrides or {}),
+                requested_outputs=list(payload.get("requested_outputs") or []),
+                request_id=str(payload.get("request_id") or "").strip(),
+            )
 
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -152,17 +148,13 @@ class Handler(BaseHTTPRequestHandler):
             def on_progress(step: int, total: int, label: str) -> None:
                 emit({"type": "progress", "step": step, "total": total, "label": label})
 
-            result = run_pipeline(
-                question=question,
-                settings=settings,
-                profile=profile,
-                offline=offline,
-                progress=on_progress,
-            )
+            result = self.search_service.run(request, progress=on_progress)
             emit({"type": "result", "result": result.to_dict()})
         except BrokenPipeError:
             # Client disconnected mid-run; no further write possible.
             return
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, status=400)
         except Exception as exc:  # surface failures to the UI rather than 500-ing silently
             with suppress(BrokenPipeError):
                 # If stream headers were already sent, ship an event; else return normal JSON error.
@@ -173,7 +165,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, status=500)
 
     def _handle_list_profiles(self) -> None:
-        profiles = [item.to_dict() for item in list_profiles()]
+        profiles = [item.to_dict() for item in self.profile_service.list_profiles()]
         self._send_json(
             {
                 "profiles": [item["id"] for item in profiles],
@@ -184,7 +176,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_get_profile(self, profile_id: str) -> None:
         try:
-            profile = get_profile(profile_id)
+            profile = self.profile_service.get_profile(profile_id)
             self._send_json({"id": profile_id, "profile": profile})
         except ProfileNotFoundError as exc:
             self._send_json({"error": str(exc)}, status=404)
@@ -194,7 +186,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_create_profile(self) -> None:
         try:
             payload = self._read_json()
-            created = create_profile(payload)
+            created = self.profile_service.create_profile(payload)
             self._send_json(created, status=201)
         except ProfileValidationError as exc:
             self._send_json({"error": str(exc)}, status=400)
@@ -204,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_update_profile(self, profile_id: str) -> None:
         try:
             payload = self._read_json()
-            updated = update_profile(profile_id, payload)
+            updated = self.profile_service.update_profile(profile_id, payload)
             self._send_json(updated)
         except ProfileNotFoundError as exc:
             self._send_json({"error": str(exc)}, status=404)
@@ -213,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_delete_profile(self, profile_id: str) -> None:
         try:
-            delete_profile(profile_id)
+            self.profile_service.delete_profile(profile_id)
             self._send_json({"deleted": profile_id})
         except ProfileNotFoundError as exc:
             self._send_json({"error": str(exc)}, status=404)
@@ -270,6 +262,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     Handler.settings = Settings.load(args.config)
+    Handler.search_service = SearchService(base_settings=Handler.settings)
+    Handler.profile_service = ProfileService()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"bierre web UI on http://{args.host}:{args.port}  (Ctrl+C to stop)")
     try:

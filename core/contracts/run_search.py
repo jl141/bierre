@@ -68,7 +68,7 @@ class RunSearchRequest:
 
 @dataclass
 class RunSearchResponse:
-    """Canonical response DTO shared by CLI, webapp, and future hosted API."""
+    """Canonical response DTO shared by CLI, webapp, and API."""
 
     contract_version: str
     request_id: str

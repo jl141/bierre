@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from bierre.core.util.http import request_json, request_text
+from core.util.http import request_json, request_text
 from core.sources import openalex, pubmed, semantic_scholar
 from core.sources.base import SearchContext
 
@@ -63,7 +63,7 @@ def test_success_single_attempt_returns_json_object():
         ]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         data = request_json("https://api.example.org/works", {"q": "hydrogel"}, 5, errors, "test")
 
     assert data == {"ok": True}
@@ -87,9 +87,9 @@ def test_retry_then_success_on_503():
     )
 
     with (
-        patch("core.http._get_session", return_value=session),
-        patch("core.http._sleep", side_effect=sleeps.append),
-        patch("core.http._jitter_random", return_value=0.0),
+        patch("core.util.http._get_session", return_value=session),
+        patch("core.util.http._sleep", side_effect=sleeps.append),
+        patch("core.util.http._jitter_random", return_value=0.0),
     ):
         data = request_json("https://api.example.org/works", None, 5, errors, "test")
 
@@ -120,8 +120,8 @@ def test_429_retry_after_is_respected():
     )
 
     with (
-        patch("core.http._get_session", return_value=session),
-        patch("core.http._sleep", side_effect=sleeps.append),
+        patch("core.util.http._get_session", return_value=session),
+        patch("core.util.http._sleep", side_effect=sleeps.append),
     ):
         data = request_json("https://api.example.org/works", None, 5, errors, "test")
 
@@ -137,7 +137,7 @@ def test_non_retryable_4xx_records_error_without_retry():
         [FakeResponse(status_code=404, reason="Not Found", headers={"Content-Type": "application/json"})]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         data = request_json("https://api.example.org/works", {"q": "x"}, 5, errors, "test")
 
     assert data is None
@@ -163,7 +163,7 @@ def test_json_parse_error_path_is_structured():
         ]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         data = request_json("https://api.example.org/works", None, 5, errors, "test")
 
     assert data is None
@@ -180,7 +180,7 @@ def test_error_url_redacts_sensitive_query_params():
         [FakeResponse(status_code=401, reason="Unauthorized", headers={"Content-Type": "application/json"})]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         request_json(
             "https://api.example.org/works",
             {"api_key": "super-secret", "token": "another-secret", "q": "safe"},
@@ -211,7 +211,7 @@ def test_tuple_timeout_is_forwarded_to_transport():
     )
 
     timeout = (1, 7)
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         request_json("https://api.example.org/works", None, timeout, errors, "test")
 
     assert session.calls[0]["timeout"] == timeout
@@ -247,7 +247,7 @@ def test_openalex_adapter_still_works_via_request_json():
         ]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         papers = openalex.search(ctx, "rechargeable coating")
 
     assert len(papers) == 1
@@ -268,9 +268,9 @@ def test_request_text_retries_then_returns_body():
     )
 
     with (
-        patch("core.http._get_session", return_value=session),
-        patch("core.http._sleep", side_effect=sleeps.append),
-        patch("core.http._jitter_random", return_value=0.0),
+        patch("core.util.http._get_session", return_value=session),
+        patch("core.util.http._sleep", side_effect=sleeps.append),
+        patch("core.util.http._jitter_random", return_value=0.0),
     ):
         data = request_text("https://api.example.org/xml", None, 5, errors, "test")
 
@@ -309,7 +309,7 @@ def test_semantic_scholar_adapter_still_works_via_request_json():
         ]
     )
 
-    with patch("core.http._get_session", return_value=session):
+    with patch("core.util.http._get_session", return_value=session):
         papers = semantic_scholar.search(ctx, "semantic query")
 
     assert len(papers) == 1
@@ -366,8 +366,8 @@ def test_request_json_max_attempts_override_disables_retry_when_one():
     session = ScriptedSession([FakeResponse(status_code=503, reason="Service Unavailable")])
 
     with (
-        patch("core.http._get_session", return_value=session),
-        patch("core.http._sleep", side_effect=sleeps.append),
+        patch("core.util.http._get_session", return_value=session),
+        patch("core.util.http._sleep", side_effect=sleeps.append),
     ):
         data = request_json(
             "https://api.example.org/works",

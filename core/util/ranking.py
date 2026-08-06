@@ -12,7 +12,7 @@ token-overlap estimate so the pipeline still runs.
 
 from __future__ import annotations
 
-from .util import text
+from . import text
 from ..config import Settings
 from ..models import Paper, RankedPaper
 from .planner import analyze_question
