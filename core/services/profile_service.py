@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from ..profile_store import ProfileSummary
-from ..repositories.profile_repository import ProfileRepository
+from ..repositories.profile_repository import ProfileRepository, ProfileSummary
 from ..repositories.yaml_profile_repository import YamlProfileRepository
 
 

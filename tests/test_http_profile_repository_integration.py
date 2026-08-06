@@ -9,8 +9,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.profile_store import ProfileNotFoundError
 from core.repositories.http_profile_repository import HttpProfileRepository
+from core.repositories.profile_repository import ProfileNotFoundError
 
 
 def _now_iso() -> str:

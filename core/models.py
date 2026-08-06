@@ -1,10 +1,4 @@
-"""Structured data passed between pipeline stages.
-
-The original workflow threaded loosely-typed ``dict`` records through every
-stage. These dataclasses give each stage a clear contract and make the eventual
-JSON/API boundary (Phase 2) a single ``to_dict`` call rather than ad-hoc key
-juggling.
-"""
+"""Structured data passed between pipeline stages."""
 
 from __future__ import annotations
 

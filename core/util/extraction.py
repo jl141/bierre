@@ -3,8 +3,7 @@
 For each selected paper and each field defined by the profile, we pull the
 matched terms plus the sentence(s) that mention them. This is deliberately
 simple and transparent — it is a triage aid, not expert reading, and the
-profile decides which fields exist. (LLM-based extraction belongs to the future
-hosted service tier, not this offline core.)
+profile decides which fields exist.
 """
 
 from __future__ import annotations

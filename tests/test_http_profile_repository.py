@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.profile_store import ProfileNotFoundError, ProfileValidationError
 from core.repositories.http_profile_repository import HttpProfileRepository, _RetryPolicy
+from core.repositories.profile_repository import ProfileNotFoundError, ProfileValidationError
 
 
 class FakeResponse:

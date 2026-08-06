@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 """Local web UI for the bierre workflow.
 
-A thin adapter over ``core.run_pipeline``: it serves static files and a small
-JSON API. Unlike the original, there is **no module-level run state** — each
-request runs the pipeline and returns the result directly in its response, so
-the browser owns the view state. This is the seam a React SPA / hosted API would
-later plug into (Phase 2).
-
     python webapp/server.py
     open http://127.0.0.1:8765
 """
@@ -31,7 +25,7 @@ from core import (  # noqa: E402
     build_profile_repository,
     load_profile,
 )
-from core.profile_store import (  # noqa: E402
+from core.repositories.profile_repository import (  # noqa: E402
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileValidationError,

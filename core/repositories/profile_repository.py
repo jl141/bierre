@@ -1,10 +1,47 @@
-"""Repository contract for profile CRUD operations."""
+"""Repository contract + transport-agnostic profile domain types."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 
-from ..profile_store import ProfileSummary
+
+class ProfileStoreError(Exception):
+    """Base error for profile storage operations."""
+
+
+class ProfileValidationError(ProfileStoreError):
+    """Payload or id does not satisfy schema/safety requirements."""
+
+
+class ProfileNotFoundError(ProfileStoreError):
+    """Requested profile does not exist."""
+
+
+class ProfileConflictError(ProfileStoreError):
+    """Create operation conflicts with an existing profile id."""
+
+
+class ProtectedProfileError(ProfileStoreError):
+    """Operation targets a protected built-in profile."""
+
+
+@dataclass(frozen=True)
+class ProfileSummary:
+    profile_id: str
+    label: str
+    created_at: str
+    updated_at: str
+    is_builtin: bool
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.profile_id,
+            "label": self.label,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "is_builtin": self.is_builtin,
+        }
 
 
 class ProfileRepository(ABC):

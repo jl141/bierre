@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from core.profile_store import ProfileNotFoundError
+from core.repositories.profile_repository import ProfileNotFoundError
 from core.repositories.yaml_profile_repository import YamlProfileRepository
 
 

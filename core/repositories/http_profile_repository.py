@@ -1,4 +1,4 @@
-"""HTTP-backed ProfileRepository implementation for hosted profile APIs."""
+"""HTTP-backed ProfileRepository implementation."""
 
 from __future__ import annotations
 
@@ -8,15 +8,15 @@ from typing import Any
 
 import requests
 
-from ..profile_store import (
+from .profile_repository import (
     ProfileConflictError,
     ProfileNotFoundError,
     ProfileStoreError,
+    ProfileRepository,
     ProfileSummary,
     ProfileValidationError,
     ProtectedProfileError,
 )
-from .profile_repository import ProfileRepository
 
 _RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _RETRYABLE_EXCEPTIONS = (requests.Timeout, requests.ConnectionError)
@@ -30,7 +30,7 @@ class _RetryPolicy:
 
 
 class HttpProfileRepository(ProfileRepository):
-    """Repository adapter that maps hosted HTTP errors to domain errors."""
+    """Repository adapter that maps HTTP errors to domain errors."""
 
     def __init__(
         self,
