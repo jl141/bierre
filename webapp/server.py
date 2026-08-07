@@ -321,7 +321,7 @@ class Handler(BaseHTTPRequestHandler):
     # --- helpers ---
 
     def _read_json(self) -> dict:
-        MAX_BODY = 256 * 1024
+        MAX_BODY = 1024 * 1024
         length = int(self.headers.get("Content-Length", "0") or 0)
         if length < 0 or length > MAX_BODY:
             raise ProfileValidationError("Request body too large.")
