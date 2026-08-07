@@ -321,7 +321,10 @@ class Handler(BaseHTTPRequestHandler):
     # --- helpers ---
 
     def _read_json(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
+        MAX_BODY = 256 * 1024
+        length = int(self.headers.get("Content-Length", "0") or 0)
+        if length < 0 or length > MAX_BODY:
+            raise ProfileValidationError("Request body too large.")
         payload = json.loads(self.rfile.read(length) or b"{}")
         if not isinstance(payload, dict):
             raise ProfileValidationError("Request body must be a JSON object.")
