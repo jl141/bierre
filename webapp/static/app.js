@@ -795,11 +795,10 @@ async function generateProfileFromResearch(event) {
     if (!response.ok || generatedProfile?.error) {
       throw new Error(generatedProfile?.error || "Profile generation failed");
     }
-
-    applyGeneratedProfile(generatedProfile);
   } catch (err) {
     setTextStatus(profileAiStatus, `Error: ${err.message}`, true);
   } finally {
+    applyGeneratedProfile(generatedProfile);
     setProfileAiLocked(false);
     closeProfileAiModal();
     setInlineStatus(profileFormStatus, "AI profile draft loaded. Review and save.", false);
