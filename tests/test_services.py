@@ -91,7 +91,7 @@ def test_search_service_runs_pipeline_and_maps_response() -> None:
         )
 
     service = SearchService(
-        base_settings=Settings.from_dict({"profile": "generic", "selection": {"top_n": 2}}),
+        base_settings=Settings.from_dict({"profile": "generic", "selection": {"top_n": 25}}),
         profile_loader=fake_profile_loader,
         pipeline_runner=fake_pipeline_runner,
     )

@@ -24,6 +24,10 @@ def _load_profile_from_repository(profile_id: str) -> DomainProfile:
 class SearchService:
     """Single run/search entrypoint used by all adapters."""
 
+    # Settings in search/selection config that can be updated by the frontend
+    _ALLOWED = ["max_results_per_query", "max_queries_per_run", "concurrent_workers",
+                "timeout_seconds", "enabled_sources", "enabled", "top_n", "min_relevance"]
+
     base_settings: Settings
     profile_loader: Callable[[str], DomainProfile] = _load_profile_from_repository
     pipeline_runner: Callable[..., RunResult] = run_pipeline
@@ -71,6 +75,12 @@ class SearchService:
         }
 
     @classmethod
+    def _safe_update(cls, base: dict, base_key: str, overrides: dict | Any):
+        for key, value in overrides.items():
+            if key in cls._ALLOWED and value < base.get(base_key).get(key):
+                base.get(base_key)[key] = value
+
+    @classmethod
     def _merge_settings(cls, base: Settings, overrides: dict[str, Any]) -> Settings:
         if not overrides:
             return base
@@ -79,8 +89,10 @@ class SearchService:
 
         merged = cls._settings_to_dict(base)
         for key, value in overrides.items():
-            if key in {"search", "selection", "api_keys"} and isinstance(value, dict):
+            if key in {"api_keys"} and isinstance(value, dict):
                 merged.setdefault(key, {}).update(value)
+            elif key in {"search", "selection"} and isinstance(value, dict):
+                cls._safe_update(merged, key, value)
             else:
                 merged[key] = value
         return Settings.from_dict(merged)
