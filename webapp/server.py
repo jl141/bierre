@@ -272,7 +272,7 @@ class Handler(BaseHTTPRequestHandler):
                 request_payload["label_hint"] = label_hint
 
             base_url = os.environ.get("BIERRE_CA_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-            target_url = f"{base_url}/api/generate"
+            target_url = f"{base_url}/api/profiles/generate"
             req_headers = {"Content-Type": "application/json"}
             bierre_ca_api_key = (os.environ.get("BIERRE_CA_API_KEY") or "").strip()
             if bierre_ca_api_key:
