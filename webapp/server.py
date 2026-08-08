@@ -218,8 +218,14 @@ class Handler(BaseHTTPRequestHandler):
         except ProfileConflictError as exc:
             self._send_json({"error": str(exc)}, status=409)
 
+    def _block_public(self) -> None:
+        is_read_only = os.environ.get("BIERRE_READONLY", "1")
+        if int(is_read_only) != 0:
+            self._send_json({"error": "Log in to edit/delete profiles"}, status=403)
+
     def _handle_update_profile(self, profile_id: str) -> None:
         try:
+            self._block_public()
             payload = self._read_json()
             updated = self.profile_service.update_profile(profile_id, payload)
             self._send_json(updated)
@@ -230,6 +236,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_delete_profile(self, profile_id: str) -> None:
         try:
+            self._block_public()
             self.profile_service.delete_profile(profile_id)
             self._send_json({"deleted": profile_id})
         except ProfileNotFoundError as exc:
