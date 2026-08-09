@@ -90,7 +90,10 @@ def _next_available_profile_id(base_id: str, profiles_dir: Path | None = None) -
 
 def generate_profile_id(label: str, profiles_dir: Path | None = None) -> str:
     """Generate a safe, unique profile id from a human-readable label."""
-    base_id = _slugify_label(str(label or ""))
+    label_string = str(label or "")
+    if len(label_string) > 64:
+        label_string = label_string[:64]
+    base_id = _slugify_label(label_string)
     return _next_available_profile_id(base_id, profiles_dir)
 
 
