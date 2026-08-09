@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import io
 import json
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -64,27 +65,17 @@ def test_cli_and_web_emit_same_canonical_payload() -> None:
 
     assert cli_payload == expected_payload
 
-    handler = web_server.Handler.__new__(web_server.Handler)
-    body = json.dumps({"question": "q", "offline": True, "profile_id": "generic"}).encode("utf-8")
-    handler.headers = {"Content-Length": str(len(body))}
-    handler.rfile = io.BytesIO(body)
-    handler.wfile = io.BytesIO()
-    handler.settings = Settings.from_dict({"profile": "generic"})
-    handler.search_service = _FakeSearchService()
+    app = web_server.create_app(Settings.from_dict({"profile": "generic"}))
+    app.state.search_service = _FakeSearchService()
 
-    status = {"code": None}
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/run",
+            json={"question": "q", "offline": True, "profile_id": "generic"},
+        )
 
-    def send_response(code: int) -> None:
-        status["code"] = code
-
-    handler.send_response = send_response
-    handler.send_header = lambda *_args: None
-    handler.end_headers = lambda: None
-
-    handler._handle_run()
-
-    assert status["code"] == 200
-    lines = [line for line in handler.wfile.getvalue().decode("utf-8").splitlines() if line.strip()]
+    assert response.status_code == 200
+    lines = [line for line in response.text.splitlines() if line.strip()]
     result_events = [json.loads(line) for line in lines if json.loads(line).get("type") == "result"]
     assert len(result_events) == 1
     web_payload = result_events[0]["result"]
