@@ -154,19 +154,22 @@ function setInlineStatus(el, text, isError) {
   el.className = "status" + (isError ? " error" : "");
 }
 
-function ensureStatusParts(statusNode) {
+function ensureStatusParts(statusNode, textText, progressText) {
   let text = statusNode.querySelector(".status-text");
   let working = statusNode.querySelector(".status-working");
   let progress = statusNode.querySelector(".status-progress");
 
   if (text && working && progress) {
-    return { text, progress };
+    text.textContent = textText;
+    progress.textContent = progressText;
+    return;
   }
 
   statusNode.textContent = "";
 
   text = document.createElement("span");
   text.className = "status-text";
+  text.textContent = textText;
 
   working = document.createElement("span");
   working.className = "status-working";
@@ -176,10 +179,10 @@ function ensureStatusParts(statusNode) {
 
   progress = document.createElement("span");
   progress.className = "status-progress";
+  progress.textContent = progressText;
 
   working.append(bar, progress);
   statusNode.append(text, working);
-  return { text, progress };
 }
 
 function setTextStatus(statusNode, text, isError) {
@@ -193,11 +196,12 @@ function setTextStatus(statusNode, text, isError) {
     return;
   }
 
-  const parts = ensureStatusParts(statusNode);
-  parts.text.textContent = text;
-  parts.progress.textContent = "";
-  const working = statusNode.querySelector(".status-working");
-  if (working) working.hidden = true;
+  // Status should only have text, no bar/progress here.
+  statusNode.innerHTML = ""
+  let textElement = document.createElement("span");
+  textElement.className = "status-text";
+  textElement.textContent = text;
+  statusNode.append(textElement);
 }
 
 function setProgressStatusFor(statusNode, text, progress) {
@@ -213,9 +217,7 @@ function setProgressStatusFor(statusNode, text, progress) {
   statusNode.hidden = false;
   statusNode.className = "status";
 
-  const parts = ensureStatusParts(statusNode);
-  parts.text.textContent = text;
-  parts.progress.textContent = progressText;
+  ensureStatusParts(statusNode, text, progressText);
   const working = statusNode.querySelector(".status-working");
   if (working) working.hidden = false;
 }
@@ -783,7 +785,7 @@ async function generateProfileFromResearch(event) {
   setProgressStatusFor(profileAiStatus, baseStatus, { step: 0, total: 0, label: "Starting..." });
 
   try {
-    const response = await fetch("/bierre-ca/api/generate", {
+    const response = await fetch("/bierre-ca/api/profiles/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -913,9 +915,9 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question: document.getElementById("question").value,
-        profile:  profileSelect.value,
+        profile_id: profileSelect.value,
         offline,
-        settings: collectSettings(),
+        settings_overrides: collectSettings(),
       }),
     });
     const data = await readRunResponse(response, baseStatus, {
@@ -1036,7 +1038,7 @@ async function readRunResponse(response, baseStatus, options = {}) {
 
 function render(data) {
   resultsPanel.hidden = false;
-  const profileName = profileLabel(data.profile);
+  const profileName = profileLabel(data.profile_id);
   summaryEl.textContent =
     `Profile "${profileName}" · ${data.mode} · found ${data.counts.found} papers, ` +
     `selected ${data.counts.selected}. Sources: ${(data.apis_used || []).join(", ") || "none"}.`;
