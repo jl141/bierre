@@ -247,7 +247,7 @@ tbody tr:hover { background: var(--row-hover); }
 }
 @keyframes slide {
   0% { transform: translateX(-100%); }
-  100% { transform: translateX(200%); }
+  100% { transform: translateX(167%); }
 }
 
 @media (max-width: 640px) {
