@@ -1,22 +1,38 @@
 #!/usr/bin/env python3
-"""Local web UI for the bierre workflow.
+"""FastAPI adapter that serves the bierre UI and drives the core pipeline.
 
     python webapp/server.py
     open http://127.0.0.1:8765
+
+The ASGI app is also importable for a production server:
+
+    uvicorn webapp.server:app          # honours $BIERRE_CONFIG
+
+Scope: this adapter is a thin transport in front of ``core``. Accounts,
+profile ownership and search history live in bierre-ca.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
+import queue
 import sys
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
-from contextlib import suppress
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import threading
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from typing import Annotated, Any
+
+import requests
+import uvicorn
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Path as PathParam, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -31,363 +47,463 @@ from core.repositories.profile_repository import (  # noqa: E402
     DomainProfile,
     ProfileConflictError,
     ProfileNotFoundError,
+    ProfileStoreError,
     ProfileValidationError,
     ProtectedProfileError,
 )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-_CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "application/javascript"}
+
+# Same grammar the YAML repository enforces on filenames. Validating here keeps
+# path traversal from ever reaching the storage layer, regardless of backend.
+PROFILE_ID_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+
+MAX_QUESTION_LENGTH = 1000
+MAX_PROFILE_ID_LENGTH = 96
+MAX_REQUEST_BYTES = 1024 * 1024
+# A run that serialises past this is still returned, but it means the UI is
+# about to stall on a multi-megabyte table — worth a line in the terminal.
+RESULT_WARN_BYTES = 4 * 1024 * 1024
+
+BIERRE_CA_TIMEOUT_SECONDS = 75
+
+logger = logging.getLogger("bierre.webapp")
+
+ProfileId = Annotated[
+    str,
+    PathParam(pattern=PROFILE_ID_PATTERN, max_length=MAX_PROFILE_ID_LENGTH),
+]
 
 
-def _settings_to_dict(s: Settings) -> dict:
-    return {
-        "contact_email": s.contact_email,
-        "use_unpaywall": s.use_unpaywall,
-        "api_keys": dict(s.api_keys),
-        "search": {
-            "max_results_per_query": s.search.max_results_per_query,
-            "max_queries_per_run": s.search.max_queries_per_run,
-            "concurrent_workers": s.search.concurrent_workers,
-            "timeout_seconds": s.search.timeout_seconds,
-            "enabled_sources": list(s.search.enabled_sources),
-            "semantic_scholar_max_queries_without_key": s.search.semantic_scholar_max_queries_without_key,
-            "source_http_overrides": dict(s.search.source_http_overrides),
-        },
-        "selection": {
-            "enabled": s.selection.enabled,
-            "top_n": s.selection.top_n,
-            "min_relevance": s.selection.min_relevance,
-        },
-        "profile_repository": {
-            "mode": s.profile_repository.mode,
-            "base_url": s.profile_repository.base_url,
-            "timeout_seconds": s.profile_repository.timeout_seconds,
-            "max_attempts": s.profile_repository.max_attempts,
-            "backoff_base_seconds": s.profile_repository.backoff_base_seconds,
-            "backoff_max_seconds": s.profile_repository.backoff_max_seconds,
-        },
-    }
+# --- request / response models ------------------------------------------------
 
 
-def _profile_loader_from_service(profile_service: ProfileService):
-    def _loader(profile_id: str) -> DomainProfile:
+class RunRequest(BaseModel):
+    """Payload for ``POST /api/run``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Empty question is allowed: it falls back to the profile's default_question.
+    question: str = Field(default="", max_length=MAX_QUESTION_LENGTH)
+    profile_id: str = Field(pattern=PROFILE_ID_PATTERN, max_length=MAX_PROFILE_ID_LENGTH)
+    offline: bool = False
+    settings_overrides: dict[str, Any] = Field(default_factory=dict)
+    requested_outputs: list[str] = Field(default_factory=list)
+    request_id: str = Field(default="", max_length=64)
+
+
+class ProfileGenerateRequest(BaseModel):
+    """Payload for ``POST /bierre-ca/api/profiles/generate``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    research_description: str = Field(min_length=1, max_length=4000)
+    label_hint: str = Field(default="", max_length=200)
+
+
+class SearchSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    max_results_per_query: int
+    max_queries_per_run: int
+    concurrent_workers: int
+    timeout_seconds: int
+    enabled_sources: list[str]
+    semantic_scholar_max_queries_without_key: int
+    source_http_overrides: dict[str, dict[str, Any]]
+
+
+class SelectionSettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    enabled: bool
+    top_n: int
+    min_relevance: float
+
+
+class ProfileRepositorySettingsOut(BaseModel):
+    """Repository config minus ``headers``, which may carry credentials."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    mode: str
+    base_url: str
+    timeout_seconds: int
+    max_attempts: int
+    backoff_base_seconds: float
+    backoff_max_seconds: float
+
+
+class SettingsOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    contact_email: str
+    use_unpaywall: bool
+    api_keys: dict[str, str]
+    search: SearchSettingsOut
+    selection: SelectionSettingsOut
+    profile_repository: ProfileRepositorySettingsOut
+
+
+class ProfileSummaryOut(BaseModel):
+    id: str
+    label: str
+    created_at: str
+    updated_at: str
+    is_builtin: bool
+
+
+class ProfileListOut(BaseModel):
+    profiles: list[str]
+    profiles_meta: list[ProfileSummaryOut]
+    default: str
+
+
+class ProfileOut(BaseModel):
+    id: str
+    profile: dict[str, Any]
+
+
+# --- dependencies -------------------------------------------------------------
+
+
+def _settings(request: Request) -> Settings:
+    return request.app.state.settings
+
+
+def _profile_service(request: Request) -> ProfileService:
+    return request.app.state.profile_service
+
+
+def _search_service(request: Request) -> SearchService:
+    return request.app.state.search_service
+
+
+SettingsDep = Annotated[Settings, Depends(_settings)]
+ProfileServiceDep = Annotated[ProfileService, Depends(_profile_service)]
+SearchServiceDep = Annotated[SearchService, Depends(_search_service)]
+
+
+# --- run/search ---------------------------------------------------------------
+
+
+def _ndjson(event: dict[str, Any]) -> bytes:
+    return (json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _run_events(search_service: SearchService, run_request: RunSearchRequest) -> Iterator[bytes]:
+    """Yield NDJSON progress events while the pipeline runs.
+
+    The pipeline is blocking and reports progress through a callback, so it runs
+    on a worker thread and hands events to this generator through a queue —
+    that is what lets the client see progress before the result is ready.
+    """
+    events: queue.Queue[dict[str, Any] | None] = queue.Queue()
+
+    def on_progress(step: int, total: int, label: str) -> None:
+        events.put({"type": "progress", "step": step, "total": total, "label": label})
+
+    def worker() -> None:
+        try:
+            response = search_service.run(run_request, progress=on_progress)
+            events.put({"type": "result", "result": response.to_dict()})
+        except Exception as exc:  # reported to the UI as a stream event
+            logger.exception("Run failed (request_id=%s)", run_request.request_id or "-")
+            events.put({"type": "error", "error": str(exc)})
+        finally:
+            events.put(None)
+
+    threading.Thread(target=worker, name="bierre-run", daemon=True).start()
+
+    while (event := events.get()) is not None:
+        line = _ndjson(event)
+        if event["type"] == "result" and len(line) > RESULT_WARN_BYTES:
+            logger.warning(
+                "Large result payload: %.1f MiB (question=%r, profile_id=%s)",
+                len(line) / (1024 * 1024),
+                run_request.question[:80],
+                run_request.profile_id,
+            )
+        yield line
+
+
+def _resolve_question(payload: RunRequest, profile_service: ProfileService) -> str:
+    question = payload.question.strip()
+    if question:
+        return question
+    # Preserve the UX where an empty box runs the profile's default question.
+    profile = profile_service.get_profile(payload.profile_id)
+    return str(profile.get("default_question") or "").strip()
+
+
+def _profile_loader(profile_service: ProfileService) -> Callable[[str], DomainProfile]:
+    def load(profile_id: str) -> DomainProfile:
         payload = profile_service.get_profile(profile_id)
         return DomainProfile.from_dict({**payload, "name": profile_id})
 
-    return _loader
+    return load
 
 
-class Handler(BaseHTTPRequestHandler):
-    # Read-only config shared by all requests; set in main().
-    settings: Settings = Settings()
-    search_service: SearchService = SearchService(base_settings=settings)
-    profile_service: ProfileService = ProfileService()
+# --- routes -------------------------------------------------------------------
 
-    def do_GET(self) -> None:
-        path = urlparse(self.path).path
-        if path in ("/", "/index.html"):
-            self._send_static("index.html")
-        elif path in ("/styles.css", "/app.js"):
-            self._send_static(path.lstrip("/"))
-        elif path == "/api/profiles":
-            self._handle_list_profiles()
-        elif path.startswith("/api/profiles/"):
-            profile_id = self._profile_id_from_path(path)
-            if profile_id is None:
-                self.send_error(404)
-                return
-            self._handle_get_profile(profile_id)
-        elif path == "/api/settings":
-            self._send_json(_settings_to_dict(self.settings))
-        else:
-            self.send_error(404)
+api = APIRouter(prefix="/api", tags=["api"])
 
-    def do_POST(self) -> None:
-        path = urlparse(self.path).path
-        if path == "/api/run":
-            self._handle_run()
-            return
-        if path == "/api/profiles":
-            self._handle_create_profile()
-            return
-        if path == "/bierre-ca/api/generate":
-            self._handle_profile_generate()
-            return
-        self.send_error(404)
 
-    def do_PUT(self) -> None:
-        path = urlparse(self.path).path
-        if not path.startswith("/api/profiles/"):
-            self.send_error(404)
-            return
-        profile_id = self._profile_id_from_path(path)
-        if profile_id is None:
-            self.send_error(404)
-            return
-        self._handle_update_profile(profile_id)
+@api.post("/run")
+def run_search(
+    payload: RunRequest,
+    profile_service: ProfileServiceDep,
+    search_service: SearchServiceDep,
+) -> StreamingResponse:
+    """Stream one pipeline run as NDJSON progress/result/error events."""
+    run_request = RunSearchRequest(
+        question=_resolve_question(payload, profile_service),
+        profile_id=payload.profile_id,
+        offline=payload.offline,
+        settings_overrides=payload.settings_overrides,
+        requested_outputs=payload.requested_outputs,
+        request_id=payload.request_id,
+    )
+    return StreamingResponse(
+        _run_events(search_service, run_request),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache"},
+    )
 
-    def do_DELETE(self) -> None:
-        path = urlparse(self.path).path
-        if not path.startswith("/api/profiles/"):
-            self.send_error(404)
-            return
-        profile_id = self._profile_id_from_path(path)
-        if profile_id is None:
-            self.send_error(404)
-            return
-        self._handle_delete_profile(profile_id)
 
-    def _handle_run(self) -> None:
-        stream_started = False
-        try:
-            payload = self._read_json()
-            settings_overrides = payload.get("settings_overrides")
-            if settings_overrides is None:
-                settings_overrides = payload.get("settings") or {}
-            profile_id = str(payload.get("profile_id") or payload.get("profile") or self.settings.profile).strip()
-            question = str(payload.get("question") or "").strip()
-            if not question:
-                # Preserve prior UX where empty question falls back to profile default.
-                question = str(self.profile_service.get_profile(profile_id).get("default_question") or "").strip()
-            request = RunSearchRequest(
-                question=question,
-                profile_id=profile_id,
-                offline=bool(payload.get("offline")),
-                settings_overrides=dict(settings_overrides or {}),
-                requested_outputs=list(payload.get("requested_outputs") or []),
-                request_id=str(payload.get("request_id") or "").strip(),
-            )
+@api.get("/settings", response_model=SettingsOut)
+def get_settings(settings: SettingsDep) -> Settings:
+    return settings
 
-            self.send_response(200)
-            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
-            stream_started = True
 
-            def emit(event: dict) -> None:
-                self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
-                self.wfile.flush()
+@api.get("/profiles", response_model=ProfileListOut)
+def list_profiles(settings: SettingsDep, profile_service: ProfileServiceDep) -> dict[str, Any]:
+    summaries = [item.to_dict() for item in profile_service.list_profiles()]
+    return {
+        "profiles": [item["id"] for item in summaries],
+        "profiles_meta": summaries,
+        "default": settings.profile,
+    }
 
-            def on_progress(step: int, total: int, label: str) -> None:
-                emit({"type": "progress", "step": step, "total": total, "label": label})
 
-            result = self.search_service.run(request, progress=on_progress)
-            emit({"type": "result", "result": result.to_dict()})
-        except BrokenPipeError:
-            # Client disconnected mid-run; no further write possible.
-            return
-        except ProfileValidationError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-        except ValueError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-        except Exception as exc:  # surface failures to the UI rather than 500-ing silently
-            with suppress(BrokenPipeError):
-                # If stream headers were already sent, ship an event; else return normal JSON error.
-                if stream_started:
-                    self.wfile.write((json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n").encode("utf-8"))
-                    self.wfile.flush()
-                    return
-            self._send_json({"error": str(exc)}, status=500)
+@api.get("/profiles/{profile_id}", response_model=ProfileOut)
+def get_profile(profile_id: ProfileId, profile_service: ProfileServiceDep) -> dict[str, Any]:
+    return {"id": profile_id, "profile": profile_service.get_profile(profile_id)}
 
-    def _handle_list_profiles(self) -> None:
-        profiles = [item.to_dict() for item in self.profile_service.list_profiles()]
-        self._send_json(
-            {
-                "profiles": [item["id"] for item in profiles],
-                "profiles_meta": profiles,
-                "default": self.settings.profile,
-            }
+
+@api.post("/profiles", response_model=ProfileOut, status_code=201)
+def create_profile(
+    profile_service: ProfileServiceDep,
+    payload: Annotated[dict[str, Any], Body()],
+) -> dict[str, Any]:
+    # The repository owns the profile schema; duplicating it here would let the
+    # two definitions drift apart.
+    return profile_service.create_profile(payload)
+
+
+@api.put("/profiles/{profile_id}", response_model=ProfileOut)
+def update_profile(
+    profile_id: ProfileId,
+    profile_service: ProfileServiceDep,
+    payload: Annotated[dict[str, Any], Body()],
+) -> dict[str, Any]:
+    _require_writable()
+    return profile_service.update_profile(profile_id, payload)
+
+
+@api.delete("/profiles/{profile_id}")
+def delete_profile(profile_id: ProfileId, profile_service: ProfileServiceDep) -> dict[str, str]:
+    _require_writable()
+    profile_service.delete_profile(profile_id)
+    return {"deleted": profile_id}
+
+
+def _require_writable() -> None:
+    """Block profile mutations until the account service fronts this app."""
+    raw = os.environ.get("BIERRE_READONLY", "1").strip().lower()
+    if raw not in {"0", "false", "no"}:
+        raise HTTPException(status_code=403, detail="Log in to edit/delete profiles")
+
+
+bierre_ca = APIRouter(prefix="/bierre-ca/api", tags=["bierre-ca"])
+
+
+@bierre_ca.post("/profiles/generate")
+def generate_profile(payload: ProfileGenerateRequest) -> StreamingResponse:
+    """Proxy profile drafting to the bierre-ca service, streaming progress."""
+    return StreamingResponse(
+        _generate_events(payload),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
+def _generate_events(payload: ProfileGenerateRequest) -> Iterator[bytes]:
+    base_url = os.environ.get("BIERRE_CA_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    target_url = f"{base_url}/api/profiles/generate"
+    headers = {"Content-Type": "application/json"}
+    api_key = (os.environ.get("BIERRE_CA_API_KEY") or "").strip()
+    if api_key:
+        headers["X-API-Key"] = api_key
+
+    body: dict[str, str] = {"research_description": payload.research_description}
+    if payload.label_hint:
+        body["label_hint"] = payload.label_hint
+
+    yield _ndjson({"type": "progress", "step": 1, "total": 3, "label": "Preparing prompt"})
+    yield _ndjson({"type": "progress", "step": 2, "total": 3, "label": "Generating profile"})
+    try:
+        response = requests.post(
+            target_url,
+            json=body,
+            headers=headers,
+            timeout=BIERRE_CA_TIMEOUT_SECONDS,
         )
-
-    def _handle_get_profile(self, profile_id: str) -> None:
-        try:
-            profile = self.profile_service.get_profile(profile_id)
-            self._send_json({"id": profile_id, "profile": profile})
-        except ProfileNotFoundError as exc:
-            self._send_json({"error": str(exc)}, status=404)
-        except ProfileValidationError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-
-    def _handle_create_profile(self) -> None:
-        try:
-            payload = self._read_json()
-            created = self.profile_service.create_profile(payload)
-            self._send_json(created, status=201)
-        except ProfileValidationError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-        except ProfileConflictError as exc:
-            self._send_json({"error": str(exc)}, status=409)
-
-    def _block_public(self) -> None:
-        is_read_only = os.environ.get("BIERRE_READONLY", "1")
-        if int(is_read_only) != 0:
-            self._send_json({"error": "Log in to edit/delete profiles"}, status=403)
-
-    def _handle_update_profile(self, profile_id: str) -> None:
-        try:
-            self._block_public()
-            payload = self._read_json()
-            updated = self.profile_service.update_profile(profile_id, payload)
-            self._send_json(updated)
-        except ProfileNotFoundError as exc:
-            self._send_json({"error": str(exc)}, status=404)
-        except ProfileValidationError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-
-    def _handle_delete_profile(self, profile_id: str) -> None:
-        try:
-            self._block_public()
-            self.profile_service.delete_profile(profile_id)
-            self._send_json({"deleted": profile_id})
-        except ProfileNotFoundError as exc:
-            self._send_json({"error": str(exc)}, status=404)
-        except ProfileValidationError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-        except ProtectedProfileError as exc:
-            self._send_json({"error": str(exc)}, status=403)
-
-    def _handle_profile_generate(self) -> None:
-        stream_started = False
-        try:
-            payload = self._read_json()
-            research_description = str(payload.get("research_description") or "").strip()
-            label_hint = str(payload.get("label_hint") or "").strip()
-            if not research_description:
-                raise ProfileValidationError("research_description is required.")
-
-            self.send_response(200)
-            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.end_headers()
-            stream_started = True
-
-            def emit(event: dict) -> None:
-                self.wfile.write((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
-                self.wfile.flush()
-
-            emit({"type": "progress", "step": 1, "total": 3, "label": "Preparing prompt"})
-
-            request_payload = {"research_description": research_description}
-            if label_hint:
-                request_payload["label_hint"] = label_hint
-
-            base_url = os.environ.get("BIERRE_CA_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-            target_url = f"{base_url}/api/profiles/generate"
-            req_headers = {"Content-Type": "application/json"}
-            bierre_ca_api_key = (os.environ.get("BIERRE_CA_API_KEY") or "").strip()
-            if bierre_ca_api_key:
-                req_headers["X-API-Key"] = bierre_ca_api_key
-
-            emit({"type": "progress", "step": 2, "total": 3, "label": "Generating profile"})
-
-            request = Request(
-                target_url,
-                data=json.dumps(request_payload).encode("utf-8"),
-                headers=req_headers,
-                method="POST",
-            )
-            with urlopen(request, timeout=75) as response:
-                data = json.loads(response.read().decode("utf-8") or "{}")
-
-            emit({"type": "progress", "step": 3, "total": 3, "label": "Applying draft"})
-            emit({"type": "result", "result": data})
-        except BrokenPipeError:
-            return
-        except HTTPError as exc:
-            detail = "Profile generation failed"
-            try:
-                err_payload = json.loads((exc.read() or b"{}").decode("utf-8"))
-                detail = str(err_payload.get("detail") or err_payload.get("error") or detail)
-            except Exception:
-                detail = str(exc) or detail
-
-            with suppress(BrokenPipeError):
-                if stream_started:
-                    self.wfile.write((json.dumps({"type": "error", "error": detail}, ensure_ascii=False) + "\n").encode("utf-8"))
-                    self.wfile.flush()
-                    return
-            self._send_json({"error": detail}, status=502)
-        except URLError as exc:
-            message = f"Cannot reach bierre-ca service: {exc.reason}"
-            with suppress(BrokenPipeError):
-                if stream_started:
-                    self.wfile.write((json.dumps({"type": "error", "error": message}, ensure_ascii=False) + "\n").encode("utf-8"))
-                    self.wfile.flush()
-                    return
-            self._send_json({"error": message}, status=502)
-        except ValueError as exc:
-            self._send_json({"error": str(exc)}, status=400)
-        except Exception as exc:
-            with suppress(BrokenPipeError):
-                if stream_started:
-                    self.wfile.write((json.dumps({"type": "error", "error": str(exc)}, ensure_ascii=False) + "\n").encode("utf-8"))
-                    self.wfile.flush()
-                    return
-            self._send_json({"error": str(exc)}, status=500)
-
-    # --- helpers ---
-
-    def _read_json(self) -> dict:
-        MAX_BODY = 1024 * 1024
-        length = int(self.headers.get("Content-Length", "0") or 0)
-        if length < 0 or length > MAX_BODY:
-            raise ProfileValidationError("Request body too large.")
-        payload = json.loads(self.rfile.read(length) or b"{}")
-        if not isinstance(payload, dict):
-            raise ProfileValidationError("Request body must be a JSON object.")
-        return payload
-
-    def _profile_id_from_path(self, path: str) -> str | None:
-        prefix = "/api/profiles/"
-        if not path.startswith(prefix):
-            return None
-        tail = unquote(path[len(prefix) :]).strip()
-        if not tail or "/" in tail:
-            return None
-        return tail
-
-    def _send_static(self, name: str) -> None:
-        path = STATIC_DIR / name
-        if not path.exists():
-            self.send_error(404)
-            return
-        body = path.read_bytes()
-        self._respond(body, _CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
-
-    def _send_json(self, data: dict, status: int = 200) -> None:
-        self._respond(json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json", status)
-
-    def _respond(self, body: bytes, content_type: str, status: int = 200) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *_args) -> None:  # keep the console quiet
+        response.raise_for_status()
+        result = response.json() if response.content else {}
+    except requests.HTTPError as exc:
+        logger.error("bierre-ca rejected the request: %s", exc)
+        yield _ndjson({"type": "error", "error": _upstream_detail(exc.response)})
         return
+    except requests.RequestException as exc:
+        logger.error("Cannot reach bierre-ca at %s: %s", target_url, exc)
+        yield _ndjson({"type": "error", "error": f"Cannot reach bierre-ca service: {exc}"})
+        return
+    except ValueError as exc:
+        logger.error("bierre-ca returned invalid JSON: %s", exc)
+        yield _ndjson({"type": "error", "error": "bierre-ca returned a malformed response"})
+        return
+
+    yield _ndjson({"type": "progress", "step": 3, "total": 3, "label": "Applying draft"})
+    yield _ndjson({"type": "result", "result": result})
+
+
+def _upstream_detail(response: requests.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"Profile generation failed ({response.status_code})"
+    if isinstance(payload, dict):
+        detail = payload.get("detail") or payload.get("error")
+        if detail:
+            return str(detail)
+    return f"Profile generation failed ({response.status_code})"
+
+
+# --- error handling -----------------------------------------------------------
+
+# The UI reads {"error": "..."} from every failed response, so all handlers
+# normalise to that shape instead of FastAPI's default {"detail": ...}.
+_PROFILE_ERROR_STATUS: dict[type[ProfileStoreError], int] = {
+    ProfileValidationError: 400,
+    ProtectedProfileError: 403,
+    ProfileNotFoundError: 404,
+    ProfileConflictError: 409,
+}
+
+
+def _error_response(status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"error": message})
+
+
+def _register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(RequestValidationError)
+    async def _on_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+        message = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'][1:]) or 'body'}: {error['msg']}"
+            for error in exc.errors()
+        )
+        logger.warning("Rejected %s %s: %s", request.method, request.url.path, message)
+        return _error_response(400, message or "Malformed request body.")
+
+    @app.exception_handler(ProfileStoreError)
+    async def _on_profile_error(request: Request, exc: ProfileStoreError) -> JSONResponse:
+        status_code = _PROFILE_ERROR_STATUS.get(type(exc), 500)
+        log = logger.warning if status_code < 500 else logger.error
+        log("%s %s -> %s: %s", request.method, request.url.path, status_code, exc)
+        return _error_response(status_code, str(exc))
+
+    @app.exception_handler(ValueError)
+    async def _on_value_error(request: Request, exc: ValueError) -> JSONResponse:
+        logger.warning("Invalid request to %s %s: %s", request.method, request.url.path, exc)
+        return _error_response(400, str(exc))
+
+    # Registered on the Starlette class so mounted apps (StaticFiles) and
+    # framework-raised 404/405s answer in the same shape as our own routes.
+    @app.exception_handler(StarletteHTTPException)
+    async def _on_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        if exc.status_code >= 500:
+            logger.error("%s %s -> %s: %s", request.method, request.url.path, exc.status_code, exc.detail)
+        return _error_response(exc.status_code, str(exc.detail))
+
+    @app.exception_handler(Exception)
+    async def _on_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return _error_response(500, str(exc) or "Internal server error.")
+
+
+# --- app ----------------------------------------------------------------------
+
+
+def create_app(settings: Settings | None = None) -> FastAPI:
+    settings = settings or Settings.load(_config_path())
+    profile_service = ProfileService(repository=build_profile_repository(settings))
+
+    app = FastAPI(title="bierre web UI", version="1.0.0")
+    app.state.settings = settings
+    app.state.profile_service = profile_service
+    app.state.search_service = SearchService(
+        base_settings=settings,
+        profile_loader=_profile_loader(profile_service),
+    )
+
+    @app.middleware("http")
+    async def _limit_body_size(request: Request, call_next):
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > MAX_REQUEST_BYTES:
+            logger.warning(
+                "Rejected %s %s: body of %s bytes exceeds %s",
+                request.method,
+                request.url.path,
+                declared,
+                MAX_REQUEST_BYTES,
+            )
+            return _error_response(413, "Request body too large.")
+        return await call_next(request)
+
+    _register_error_handlers(app)
+    app.include_router(api)
+    app.include_router(bierre_ca)
+    # Mounted last so the API routes win; html=True serves index.html at "/".
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+    return app
+
+
+def _config_path() -> Path | None:
+    raw = (os.environ.get("BIERRE_CONFIG") or "").strip()
+    return Path(raw) if raw else None
+
+
+def _configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+        stream=sys.stderr,
+    )
+
+
+app = create_app()
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the local bierre web UI.")
+    parser = argparse.ArgumentParser(description="Run the bierre web UI.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--config", type=Path, help="Path to a settings YAML file.")
     args = parser.parse_args(argv)
 
-    Handler.settings = Settings.load(args.config)
-    repository = build_profile_repository(Handler.settings)
-    Handler.profile_service = ProfileService(repository=repository)
-    profile_loader = _profile_loader_from_service(Handler.profile_service)
-    Handler.search_service = SearchService(base_settings=Handler.settings, profile_loader=profile_loader)
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"bierre web UI on http://{args.host}:{args.port}  (Ctrl+C to stop)")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopped.")
-    finally:
-        server.server_close()
+    _configure_logging()
+    uvicorn.run(create_app(Settings.load(args.config)), host=args.host, port=args.port)
     return 0
 
 
