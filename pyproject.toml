@@ -1,0 +1,31 @@
+[tool.pytest.ini_options]
+minversion = "7.0"
+# The project is a plain source tree (no installed package), so tests import
+# `core`, `cli` and `webapp` relative to this directory.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "unit: fast, isolated tests for a single module (no I/O, no sockets)",
+    "integration: two or more real components wired together (filesystem, loopback HTTP, ASGI app)",
+    "e2e: full adapter entrypoints (CLI process flow, web run stream) end to end",
+]
+filterwarnings = [
+    "error::DeprecationWarning:core.*",
+    "error::DeprecationWarning:webapp.*",
+]
+
+[tool.coverage.run]
+source = ["core", "cli", "webapp"]
+branch = true
+omit = ["*/tests/*", "webapp/static/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

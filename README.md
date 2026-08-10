@@ -37,8 +37,16 @@ in `config.yaml`. Add a new domain by copying `generic.yaml`; no code changes.
 ## Tests
 
 ```bash
-python -m pytest tests/
+pip install -r requirements-dev.txt
+
+pytest                 # unit + integration + e2e (offline, ~10s)
+pytest -m unit         # fast layer only
+pytest --cov           # coverage summary
 ```
+
+Layers, fixtures and the rules new tests must follow are documented in
+[`tests/README.md`](tests/README.md). CI runs the same suite on every push
+(`.github/workflows/tests.yml`).
 
 ## HTTP helper
 
