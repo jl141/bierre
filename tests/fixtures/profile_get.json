@@ -1,0 +1,62 @@
+{
+  "id": "antimicrobial-review",
+  "profile": {
+    "name": "antimicrobial-review",
+    "label": "Antimicrobial Review",
+    "default_question": "Which biocide combinations show synergistic activity against biofilms?",
+    "concepts": [
+      {
+        "name": "biocide",
+        "triggers": ["biocide", "disinfectant"],
+        "terms": ["chlorhexidine", "benzalkonium chloride", "hydrogen peroxide"]
+      },
+      {
+        "name": "synergy",
+        "triggers": ["synergy", "synergistic"],
+        "terms": ["checkerboard assay", "fractional inhibitory concentration"]
+      }
+    ],
+    "query_groups": {
+      "primary": ["biocide synergy", "disinfectant combination"],
+      "secondary": ["biofilm eradication"]
+    },
+    "off_topic_terms": ["dentistry", "veterinary"],
+    "journal_terms": ["Applied and Environmental Microbiology", "Biofouling"],
+    "term_groups": {
+      "organisms": ["Staphylococcus aureus", "Pseudomonas aeruginosa"]
+    },
+    "intents": {
+      "mechanism": ["mechanism of action", "membrane disruption"]
+    },
+    "buckets": [
+      {
+        "id": "synergy-evidence",
+        "label": "Synergy evidence",
+        "boost": 1.5,
+        "requires": ["biocide", "synergy"],
+        "exclude_off_topic": true,
+        "fallback": false
+      },
+      {
+        "id": "all",
+        "label": "All",
+        "boost": 0.0,
+        "requires": [],
+        "exclude_off_topic": false,
+        "fallback": true
+      }
+    ],
+    "extraction_fields": [
+      {
+        "name": "fic_index",
+        "terms": ["FIC index", "fractional inhibitory concentration index"],
+        "require_numeric": true
+      },
+      {
+        "name": "exposure_time",
+        "terms": ["contact time", "exposure time"],
+        "require_numeric": true
+      }
+    ]
+  }
+}

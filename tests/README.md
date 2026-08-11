@@ -21,6 +21,7 @@ project being pip-installed.
 tests/
   conftest.py        shared fixtures + the network guard (applies to every layer)
   factories.py       builders for Paper / RankedPaper / RunResult / DomainProfile / …
+  fixtures/          example wire payloads, byte-identical to bierre-ca's copy
   support/           test doubles: FakeResponse, ScriptedSession, mock profile API server
   unit/              one module under test, everything else stubbed. No I/O.
     sources/         one file per search-source adapter
@@ -55,10 +56,13 @@ Markers are applied automatically from the directory name (see
 3. **No real sleeping.** `core.util.http` exposes `sleep_fn` / `jitter_fn`
    parameters; use them (or the `captured_sleeps` fixture) so retry tests assert
    the backoff schedule instead of waiting for it.
-4. **Assert behaviour, not arithmetic.** Relevance scores shift when the optional
+4. **Never hand-edit one copy of `tests/fixtures/`.** Those payloads exist twice — here and in
+   `bierre-ca/tests/fixtures/` — and are byte-identical on purpose. `tests/fixtures/README.md`
+   has the update procedure.
+5. **Assert behaviour, not arithmetic.** Relevance scores shift when the optional
    ranking libraries are present or absent, so tests assert ordering, bucketing
    and selection — never an exact percentage.
-5. **One reason to fail per test.** Prefer several small tests over one long one;
+6. **One reason to fail per test.** Prefer several small tests over one long one;
    `pytest.mark.parametrize` for table-shaped cases.
 
 ## CI

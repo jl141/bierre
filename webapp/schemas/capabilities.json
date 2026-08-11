@@ -1,0 +1,285 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bierre.ca/schemas/capabilities.json",
+  "title": "bierre capabilities",
+  "description": "Response body of GET /api/capabilities, served by bierre/webapp/server.py in both run modes. The front-end fetches it once at boot; every account-shaped affordance is rendered only when its capability is true, and absent (not disabled) otherwise. Feature flags stay free-valued on purpose so a hosted deployment can report false for a phase that has not shipped yet; only the structural invariants of each mode are constrained here. One rule cannot be expressed in JSON Schema and is asserted by the capabilities test instead: default_locale must be a member of locales.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mode",
+    "auth",
+    "accounts",
+    "auth_methods",
+    "accounts_base",
+    "email_digest",
+    "history",
+    "history_retention",
+    "max_subscriptions",
+    "profile_write",
+    "ai_profile_generation",
+    "shared_api_keys",
+    "locales",
+    "default_locale",
+    "legal_urls"
+  ],
+  "properties": {
+    "mode": {
+      "description": "Deployment shape. Comes from config, never from a guess.",
+      "enum": ["local", "hosted"]
+    },
+    "auth": {
+      "description": "Whether a sign-in flow exists. Local mode never shows a login wall.",
+      "type": "boolean"
+    },
+    "accounts": {
+      "description": "Whether bierre-ca owns identity for this deployment.",
+      "type": "boolean"
+    },
+    "auth_methods": {
+      "description": "Credentials the backend can actually service right now. A method absent from this list renders no button at all.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["magic_link", "password", "google", "orcid"]
+      }
+    },
+    "accounts_base": {
+      "description": "Path prefix the webapp proxies to bierre-ca, or null when no account service exists.",
+      "type": ["string", "null"],
+      "pattern": "^/[a-z0-9._~/-]*$"
+    },
+    "email_digest": {
+      "description": "Whether outbound digest mail is available. Local mode gets a 'Check for new papers' button instead.",
+      "type": "boolean"
+    },
+    "history": {
+      "description": "Which HistoryRepository is bound. A single-choice switch, never a fallback list: two live backends would save every run twice.",
+      "enum": ["local", "server"]
+    },
+    "history_retention": {
+      "description": "Server-side retention ceiling, or null when history is local and bounded only by disk.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["runs", "months"],
+      "properties": {
+        "runs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "months": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "max_subscriptions": {
+      "description": "Active subscriptions allowed per user. 0 disables the affordance; the hard ceiling is 10.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "profile_write": {
+      "description": "Whether this client may create, edit or delete profiles. Write authority is mode == local or an authenticated request.",
+      "type": "boolean"
+    },
+    "ai_profile_generation": {
+      "description": "How profile generation is paid for: the user's own key or a hosted bierre-ca under an anonymous rate limit, versus their account.",
+      "enum": ["byo_key_or_bierre_ca", "account"]
+    },
+    "shared_api_keys": {
+      "description": "Whether the deployment supplies search-source API keys. False means bring your own or run keyless.",
+      "type": "boolean"
+    },
+    "locales": {
+      "description": "Locales with a shipped string catalogue.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/locale"
+      }
+    },
+    "default_locale": {
+      "$ref": "#/$defs/locale",
+      "description": "Locale used before a user preference is known. Must be a member of locales."
+    },
+    "legal_urls": {
+      "description": "Where the footer and the signup consent line point.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["privacy", "terms", "sources"],
+      "properties": {
+        "privacy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terms": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sources": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "locale": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(?:-[A-Z]{2})?$"
+    }
+  },
+  "allOf": [
+    {
+      "title": "local mode has no account service at all",
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "local"
+          }
+        },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "auth": {
+            "const": false
+          },
+          "accounts": {
+            "const": false
+          },
+          "auth_methods": {
+            "maxItems": 0
+          },
+          "accounts_base": {
+            "type": "null"
+          },
+          "email_digest": {
+            "const": false
+          },
+          "history": {
+            "const": "local"
+          },
+          "history_retention": {
+            "type": "null"
+          },
+          "max_subscriptions": {
+            "const": 0
+          },
+          "profile_write": {
+            "const": true
+          },
+          "ai_profile_generation": {
+            "const": "byo_key_or_bierre_ca"
+          },
+          "shared_api_keys": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "title": "hosted mode always has identity and server-side history",
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "hosted"
+          }
+        },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "auth": {
+            "const": true
+          },
+          "accounts": {
+            "const": true
+          },
+          "accounts_base": {
+            "type": "string",
+            "minLength": 1
+          },
+          "history": {
+            "const": "server"
+          },
+          "history_retention": {
+            "type": "object"
+          },
+          "ai_profile_generation": {
+            "const": "account"
+          }
+        }
+      }
+    },
+    {
+      "title": "a credential the UI can render implies a sign-in flow",
+      "if": {
+        "properties": {
+          "auth_methods": {
+            "minItems": 1
+          }
+        },
+        "required": ["auth_methods"]
+      },
+      "then": {
+        "properties": {
+          "auth": {
+            "const": true
+          },
+          "accounts": {
+            "const": true
+          }
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "mode": "local",
+      "auth": false,
+      "accounts": false,
+      "auth_methods": [],
+      "accounts_base": null,
+      "email_digest": false,
+      "history": "local",
+      "history_retention": null,
+      "max_subscriptions": 0,
+      "profile_write": true,
+      "ai_profile_generation": "byo_key_or_bierre_ca",
+      "shared_api_keys": false,
+      "locales": ["en"],
+      "default_locale": "en",
+      "legal_urls": {
+        "privacy": "/privacy",
+        "terms": "/terms",
+        "sources": "/data-sources"
+      }
+    },
+    {
+      "mode": "hosted",
+      "auth": true,
+      "accounts": true,
+      "auth_methods": ["password"],
+      "accounts_base": "/accounts",
+      "email_digest": false,
+      "history": "server",
+      "history_retention": {
+        "runs": 200,
+        "months": 12
+      },
+      "max_subscriptions": 0,
+      "profile_write": true,
+      "ai_profile_generation": "account",
+      "shared_api_keys": false,
+      "locales": ["en"],
+      "default_locale": "en",
+      "legal_urls": {
+        "privacy": "/privacy",
+        "terms": "/terms",
+        "sources": "/data-sources"
+      }
+    }
+  ]
+}

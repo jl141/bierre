@@ -1,0 +1,11 @@
+{
+  "access_token": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCIsImtpZCI6IjIwMjYtMDgtY3VycmVudCJ9.eyJpc3MiOiJodHRwczovL2JpZXJyZS5jYS9hY2NvdW50cyIsImF1ZCI6ImJpZXJyZS1hcGkiLCJzdWIiOiIwMTk4YzhkNS02ZjRhLTdjM2ItOWQyMS00ZjZhOGIwYzFkMmUiLCJqdGkiOiIwMTk4YzhkNS03YTExLTdmMDQtOGM2Ni0yYjlkNWUwNDE3YWEiLCJpYXQiOjE3ODY0NDk2MDAsIm5iZiI6MTc4NjQ0OTYwMCwiZXhwIjoxNzg2NDUwNTAwLCJ0eXAiOiJhY2Nlc3MiLCJzdiI6MSwiZXYiOmZhbHNlfQ.Zml4dHVyZS1zaWduYXR1cmUtaXMtbm90LXZlcmlmaWFibGU",
+  "expires_in": 900,
+  "user": {
+    "id": "0198c8d5-6f4a-7c3b-9d21-4f6a8b0c1d2e",
+    "email": "researcher@example.org",
+    "email_verified": false,
+    "display_name": "Ada Researcher",
+    "locale": "en"
+  }
+}
