@@ -1,0 +1,24 @@
+/* Design tokens. Loaded first: every other sheet reads from here.
+   Tokenising the colours still hardcoded in components.css is U0 proper. */
+
+:root {
+  --bg: #f3f2ef;
+  --surface: #fbfaf8;
+  --ink: #2e2c28;
+  --muted: #6b6862;
+  --line: #ddd9d2;
+  --accent: #5c6b73;
+  --accent-strong: #46535a;
+  --selected: #eef1f0;
+  --row-hover: #d4e2de;
+  --danger: #875449;
+  --danger-hover: #6f4037;
+  --gradient-ramp: linear-gradient(
+    47deg,
+    #8e9b90,
+    #93c0a4,
+    #b6c4a2 /* #d4cdab #dce2bd */
+  );
+  --gradient-size: 500% 500%;
+  --gradient-duration: 6s;
+}

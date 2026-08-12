@@ -1,50 +1,6 @@
-:root {
-  --bg: #f3f2ef;
-  --surface: #fbfaf8;
-  --ink: #2e2c28;
-  --muted: #6b6862;
-  --line: #ddd9d2;
-  --accent: #5c6b73;
-  --accent-strong: #46535a;
-  --selected: #eef1f0;
-  --row-hover: #d4e2de;
-  --danger: #875449;
-  --danger-hover: #6f4037;
-  --gradient-ramp: linear-gradient(
-    47deg,
-    #8e9b90,
-    #93c0a4,
-    #b6c4a2 /* #d4cdab #dce2bd */
-  );
-  --gradient-size: 500% 500%;
-  --gradient-duration: 6s;
-}
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
-}
-
-header {
-  padding: 22px 28px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
-}
-h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
-.tagline { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-
-main {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
+/* Buttons, badges, fields, panels, tables, dialogs.
+   Rule order is load-bearing: several pairs below share a specificity and rely
+   on the later one winning, so keep new rules next to the block they belong to. */
 
 .gradient-text {
   background-image: var(--gradient-ramp);
@@ -71,24 +27,6 @@ main {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 20px;
-}
-h2 { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
-
-label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
-
-textarea, select {
-  width: 100%;
-  font: inherit;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px;
-}
-textarea { resize: vertical; }
-textarea:focus, select:focus {
-  outline: 2px solid rgba(92, 107, 115, 0.25);
-  border-color: var(--accent);
 }
 
 .controls {
@@ -248,20 +186,6 @@ tbody tr:hover { background: var(--row-hover); }
 @keyframes slide {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(167%); }
-}
-
-@media (max-width: 640px) {
-  main { padding: 16px; }
-  .controls { gap: 12px; }
-  .results-controls { gap: 8px; }
-  .status-working {
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
-  .bar {
-    width: 100%;
-    min-width: 0;
-  }
 }
 
 /* ── Results controls bar ───────────────────────────────────────────────────── */
@@ -822,33 +746,4 @@ tbody tr { transition: background 0.1s; }
 
 .profile-ai-modal .profile-field textarea {
   min-height: 140px;
-}
-
-@media (max-width: 760px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-list-label {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .profile-item,
-  .profile-item-body,
-  .profile-item-body:has(textarea) {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-item-remove {
-    justify-self: end;
-  }
-
-  .profile-select-row {
-    flex-wrap: wrap;
-  }
-
-  .btn-icon {
-    height: 34px;
-  }
 }

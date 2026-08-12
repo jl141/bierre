@@ -1,104 +1,57 @@
 <!doctype html>
 <html lang="en">
-<link rel="apple-touch-icon" sizes="180x180" href="/favicon_io/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon_io/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon_io/favicon-16x16.png">
-<link rel="manifest" href="/site.webmanifest">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>bierre — literature search</title>
-  <link rel="stylesheet" href="/styles.css">
+  <meta name="description"
+    content="bierre searches five free scholarly databases and triages the results with a domain profile.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="bierre — literature search">
+  <meta property="og:description"
+    content="bierre searches five free scholarly databases and triages the results with a domain profile.">
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon_io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon_io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon_io/favicon-16x16.png">
+  <link rel="manifest" href="/favicon_io/site.webmanifest">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/layout.css">
 </head>
 <body>
-  <header>
-    <h1 class="gradient-text">bierre</h1>
-    <p class="tagline">Literature search &amp; triage across free scholarly sources</p>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="app-header">
+    <div class="app-brand">
+      <a class="brand-mark gradient-text" href="#/">bierre</a>
+      <p class="tagline">Literature search &amp; triage across free scholarly sources</p>
+    </div>
+    <nav class="app-nav" id="app-nav" aria-label="Primary"></nav>
+    <div class="account-slot" id="account-slot"></div>
   </header>
 
-  <main>
-    <section class="panel" id="search-panel">
-      <h2>Search</h2>
-      <form id="search-form">
-        <label for="question">Research question</label>
-        <textarea id="question" name="question" rows="2"
-          placeholder="e.g. What evidence is there to support the sentience or consciousness of fish?"></textarea>
+  <noscript>
+    <p class="noscript-message">
+      bierre runs its search in the browser and needs JavaScript enabled. The command-line
+      interface (<code>python cli.py</code>) does the same work without it.
+    </p>
+  </noscript>
 
-        <div class="controls">
-          <div class="field">
-            <label for="profile">Domain profile</label>
-            <div class="profile-select-row">
-              <select id="profile" name="profile"></select>
-              <button type="button" id="profile-create-btn" class="btn-icon" aria-label="Create profile" title="Create profile">+</button>
-              <button type="button" id="profile-edit-btn" class="btn-icon btn-ghost" aria-label="Edit selected profile" title="Edit selected profile">Edit</button>
-              <!-- TODO: do we want a profile deletion button -->
-              <span hidden><button type="button" id="profile-delete-btn" class="btn-icon btn-danger" aria-label="Delete selected profile" title="Delete selected profile">Delete</button></span>
-            </div>
-          </div>
-          <label class="checkbox">
-            <input type="checkbox" id="offline" name="offline">
-            Offline test (mock data)
-          </label>
-          <button type="submit" id="run-btn">Run search</button>
-        </div>
-      </form>
-      <p class="status" id="status" hidden></p>
-    </section>
+  <!-- Router outlet. tabindex="-1" makes it a valid skip-link target. -->
+  <main id="main" tabindex="-1"></main>
 
-    <details class="panel settings-panel" id="settings-details">
-      <summary>
-        <span class="settings-summary-label">Search settings</span>
-        <span class="settings-summary-actions">
-          <button type="button" id="reset-basic-btn" class="btn-ghost btn-small">Reset to defaults</button>
-        </span>
-      </summary>
-      <div class="settings-body">
-        <div id="basic-settings" class="settings-group"></div>
-        <details class="settings-advanced" id="advanced-details">
-          <summary>
-            <span class="settings-summary-label">Advanced configuration</span>
-            <span class="settings-summary-actions">
-              <button type="button" id="reset-advanced-btn" class="btn-ghost btn-small">Reset</button>
-            </span>
-          </summary>
-          <div id="advanced-settings" class="settings-group"></div>
-        </details>
-      </div>
-    </details>
+  <footer class="app-footer" id="app-footer"></footer>
 
-    <section class="panel" id="results-panel" hidden>
-      <div class="results-head">
-        <h2>Results</h2>
-        <div class="results-controls">
-          <label class="checkbox">
-            <input type="checkbox" id="selected-only"> Selected only
-          </label>
-          <button type="button" id="reset-widths-btn" class="btn-ghost">Reset widths</button>
-          <details id="col-picker">
-            <summary>Columns</summary>
-            <div id="col-picker-list" class="col-picker-list"></div>
-          </details>
-        </div>
-      </div>
-      <p class="summary" id="summary"></p>
-      <div class="table-wrap">
-        <table id="results-table">
-          <colgroup id="col-group"></colgroup>
-          <thead><tr id="results-head-row"></tr></thead>
-          <tbody id="results-body"></tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <dialog id="profile-modal" class="profile-modal">
+  <dialog id="profile-modal" class="profile-modal"
+    aria-labelledby="profile-modal-title" aria-describedby="profile-modal-note">
     <form id="profile-form" class="profile-form" method="dialog" novalidate>
       <div class="profile-modal-head">
         <h3 id="profile-modal-title">Create profile</h3>
         <button type="button" id="profile-modal-close" class="btn-ghost btn-small">Close</button>
       </div>
 
-      <p class="profile-modal-note">Define how search expands terms, classifies papers, and extracts evidence. Advanced fields still accept JSON when you need finer control.</p>
+      <p id="profile-modal-note" class="profile-modal-note">Define how search expands terms, classifies papers, and extracts evidence. Advanced fields still accept JSON when you need finer control.</p>
       <p id="profile-form-status" class="status" hidden></p>
 
       <div class="profile-grid">
@@ -181,14 +134,15 @@
     </form>
   </dialog>
 
-  <dialog id="profile-ai-modal" class="profile-modal profile-ai-modal">
+  <dialog id="profile-ai-modal" class="profile-modal profile-ai-modal"
+    aria-labelledby="profile-ai-modal-title" aria-describedby="profile-ai-modal-note">
     <form id="profile-ai-form" class="profile-form" method="dialog" novalidate>
       <div class="profile-modal-head">
-        <h3>Generate Profile with AI</h3>
+        <h3 id="profile-ai-modal-title">Generate Profile with AI</h3>
         <button type="button" id="profile-ai-close" class="btn-ghost btn-small">Close</button>
       </div>
 
-      <p class="profile-modal-note">Describe what you want to research. The generated draft will populate the profile editor for review.</p>
+      <p id="profile-ai-modal-note" class="profile-modal-note">Describe what you want to research. The generated draft will populate the profile editor for review.</p>
 
       <div class="profile-grid">
         <div class="profile-field profile-field-wide">
@@ -197,13 +151,7 @@
         </div>
       </div>
 
-      <p id="profile-ai-status" class="status" hidden>
-        <span class="status-text"></span>
-        <span class="status-working">
-          <span class="bar"></span>
-          <span class="status-progress"></span>
-        </span>
-      </p>
+      <p id="profile-ai-status" class="status" hidden></p>
 
       <div class="profile-modal-actions">
         <button type="submit" id="profile-ai-generate-btn">Generate</button>
@@ -211,6 +159,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>

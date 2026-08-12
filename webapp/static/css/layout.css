@@ -1,0 +1,213 @@
+/* App shell: skip link, header, nav, main outlet, footer, responsive overrides.
+   Loaded last, so the media queries at the bottom override the component rules
+   they share a specificity with. New rules here use logical properties only. */
+
+.skip-link {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: 200;
+  padding-block: 8px;
+  padding-inline: 14px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  color: var(--accent-strong);
+  font-weight: 600;
+  text-decoration: none;
+  transform: translateY(calc(-100% - 16px));
+  transition: transform 0.12s;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-block: 22px;
+  padding-inline: 28px;
+  border-block-end: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.app-brand {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.brand-mark {
+  display: inline-block;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+}
+
+.tagline { margin-block: 4px 0; color: var(--muted); font-size: 14px; }
+
+.app-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 36px;
+  padding-block: 6px;
+  padding-inline: 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.app-nav a:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+.app-nav a[aria-current="page"] {
+  color: var(--accent-strong);
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.account-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 36px;
+  padding-block: 6px;
+  padding-inline: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.account-link:hover {
+  background: var(--bg);
+}
+
+main {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: calc(100vh - 103px - 58px);
+}
+
+/* A view is one child of the outlet, so it repeats the outlet's stacking. */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.noscript-message {
+  max-inline-size: 1040px;
+  margin-block: 24px 0;
+  margin-inline: auto;
+  padding-block: 14px;
+  padding-inline: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.app-footer {
+  border-block-start: 1px solid var(--line);
+  background: var(--surface);
+  padding-block: 16px;
+  padding-inline: 28px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.app-footer ul {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-footer a {
+  color: var(--accent-strong);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 24px;
+}
+
+.local-badge {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 24px;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 640px) {
+  main { padding: 16px; }
+  .controls { gap: 12px; }
+  .results-controls { gap: 8px; }
+  .status-working {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .bar {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-list-label {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-item,
+  .profile-item-body,
+  .profile-item-body:has(textarea) {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-item-remove {
+    justify-self: end;
+  }
+
+  .profile-select-row {
+    flex-wrap: wrap;
+  }
+
+  .btn-icon {
+    height: 34px;
+  }
+}
