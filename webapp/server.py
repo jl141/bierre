@@ -21,9 +21,11 @@ import os
 import queue
 import sys
 import threading
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import requests
 import uvicorn
@@ -47,10 +49,17 @@ from core.repositories.profile_repository import (  # noqa: E402
     DomainProfile,
     ProfileConflictError,
     ProfileNotFoundError,
+    ProfileRepository,
     ProfileStoreError,
     ProfileValidationError,
     ProtectedProfileError,
 )
+from webapp import pages  # noqa: E402
+from webapp.accounts_proxy import create_accounts_proxy_router  # noqa: E402
+from webapp.capabilities import build_capabilities  # noqa: E402
+
+if TYPE_CHECKING:
+    from webapp.auth import AccessTokenVerifier
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -66,6 +75,11 @@ MAX_REQUEST_BYTES = 1024 * 1024
 RESULT_WARN_BYTES = 4 * 1024 * 1024
 
 BIERRE_CA_TIMEOUT_SECONDS = 75
+BIERRE_CA_DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+
+# Credentials the caller presented, replayed to bierre-ca so it authorises the
+# end user rather than this service.
+FORWARDED_AUTH_HEADERS = ("authorization", "cookie", "x-csrf-token")
 
 logger = logging.getLogger("bierre.webapp")
 
@@ -171,17 +185,71 @@ def _settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
-def _profile_service(request: Request) -> ProfileService:
-    return request.app.state.profile_service
-
-
-def _search_service(request: Request) -> SearchService:
-    return request.app.state.search_service
-
-
 SettingsDep = Annotated[Settings, Depends(_settings)]
+
+
+def _access_claims(request: Request) -> dict[str, Any] | None:
+    """Claims of the caller's access token, or None if there is no valid one.
+
+    Local mode has no verifier and therefore no signed-in state at all; that is
+    not a restriction, because local write authority does not depend on identity.
+    """
+    verifier = request.app.state.token_verifier
+    if verifier is None:
+        return None
+    scheme, _, token = request.headers.get("authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return verifier.verify(token)
+
+
+AccessClaimsDep = Annotated["dict[str, Any] | None", Depends(_access_claims)]
+
+
+def _profile_service(request: Request) -> ProfileService:
+    """One service per request when the repository speaks to bierre-ca.
+
+    A repository built once at start-up can only ever carry a fixed credential,
+    which would make every hosted profile call act as the service instead of as
+    the person who made it.
+    """
+    build_repository = request.app.state.caller_scoped_repository
+    if build_repository is None:
+        return request.app.state.profile_service
+    return ProfileService(repository=build_repository(request))
+
+
 ProfileServiceDep = Annotated[ProfileService, Depends(_profile_service)]
+
+
+def _search_service(request: Request, profile_service: ProfileServiceDep) -> SearchService:
+    """Load the run's profile through the caller's repository.
+
+    A hosted run may name a profile only its owner can read, so the loader has to
+    carry the same credentials as the rest of the request.
+    """
+    search_service = request.app.state.search_service
+    if request.app.state.caller_scoped_repository is None:
+        return search_service
+    return replace(search_service, profile_loader=_profile_loader(profile_service))
+
+
 SearchServiceDep = Annotated[SearchService, Depends(_search_service)]
+
+
+def _require_writable(settings: SettingsDep, claims: AccessClaimsDep) -> None:
+    """Write authority is ``mode == "local" or the request is authenticated``.
+
+    Hosted anonymous callers are read-only. bierre-ca enforces ownership again on
+    the forwarded call; this check exists so the UI gets a coherent 401 instead
+    of an upstream error, never as the only thing standing between an anonymous
+    caller and someone else's data.
+    """
+    if settings.deployment.is_hosted and claims is None:
+        raise HTTPException(status_code=401, detail="Sign in to manage profiles.")
+
+
+RequireWritable = Depends(_require_writable)
 
 
 # --- run/search ---------------------------------------------------------------
@@ -276,6 +344,17 @@ def get_settings(settings: SettingsDep) -> Settings:
     return settings
 
 
+@api.get("/capabilities")
+def get_capabilities(settings: SettingsDep, claims: AccessClaimsDep) -> dict[str, Any]:
+    """Describe what this deployment can do, for the front-end to gate on.
+
+    The response shape is owned by `webapp/schemas/capabilities.json`; the test
+    suite validates both modes against it rather than paying for a JSON Schema
+    dependency on every request.
+    """
+    return build_capabilities(settings, authenticated=claims is not None)
+
+
 @api.get("/profiles", response_model=ProfileListOut)
 def list_profiles(settings: SettingsDep, profile_service: ProfileServiceDep) -> dict[str, Any]:
     summaries = [item.to_dict() for item in profile_service.list_profiles()]
@@ -291,7 +370,7 @@ def get_profile(profile_id: ProfileId, profile_service: ProfileServiceDep) -> di
     return {"id": profile_id, "profile": profile_service.get_profile(profile_id)}
 
 
-@api.post("/profiles", response_model=ProfileOut, status_code=201)
+@api.post("/profiles", response_model=ProfileOut, status_code=201, dependencies=[RequireWritable])
 def create_profile(
     profile_service: ProfileServiceDep,
     payload: Annotated[dict[str, Any], Body()],
@@ -301,28 +380,19 @@ def create_profile(
     return profile_service.create_profile(payload)
 
 
-@api.put("/profiles/{profile_id}", response_model=ProfileOut)
+@api.put("/profiles/{profile_id}", response_model=ProfileOut, dependencies=[RequireWritable])
 def update_profile(
     profile_id: ProfileId,
     profile_service: ProfileServiceDep,
     payload: Annotated[dict[str, Any], Body()],
 ) -> dict[str, Any]:
-    _require_writable()
     return profile_service.update_profile(profile_id, payload)
 
 
-@api.delete("/profiles/{profile_id}")
+@api.delete("/profiles/{profile_id}", dependencies=[RequireWritable])
 def delete_profile(profile_id: ProfileId, profile_service: ProfileServiceDep) -> dict[str, str]:
-    _require_writable()
     profile_service.delete_profile(profile_id)
     return {"deleted": profile_id}
-
-
-def _require_writable() -> None:
-    """Block profile mutations until the account service fronts this app."""
-    raw = os.environ.get("BIERRE_READONLY", "1").strip().lower()
-    if raw not in {"0", "false", "no"}:
-        raise HTTPException(status_code=403, detail="Log in to edit/delete profiles")
 
 
 bierre_ca = APIRouter(prefix="/bierre-ca/api", tags=["bierre-ca"])
@@ -339,8 +409,7 @@ def generate_profile(payload: ProfileGenerateRequest) -> StreamingResponse:
 
 
 def _generate_events(payload: ProfileGenerateRequest) -> Iterator[bytes]:
-    base_url = os.environ.get("BIERRE_CA_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    target_url = f"{base_url}/api/profiles/generate"
+    target_url = f"{_bierre_ca_base_url()}/api/profiles/generate"
     headers = {"Content-Type": "application/json"}
     api_key = (os.environ.get("BIERRE_CA_API_KEY") or "").strip()
     if api_key:
@@ -376,6 +445,10 @@ def _generate_events(payload: ProfileGenerateRequest) -> Iterator[bytes]:
 
     yield _ndjson({"type": "progress", "step": 3, "total": 3, "label": "Applying draft"})
     yield _ndjson({"type": "result", "result": result})
+
+
+def _bierre_ca_base_url() -> str:
+    return os.environ.get("BIERRE_CA_BASE_URL", BIERRE_CA_DEFAULT_BASE_URL).rstrip("/")
 
 
 def _upstream_detail(response: requests.Response) -> str:
@@ -445,13 +518,64 @@ def _register_error_handlers(app: FastAPI) -> None:
 # --- app ----------------------------------------------------------------------
 
 
+def _forwarded_auth_headers(request: Request) -> dict[str, str]:
+    return {name: value for name in FORWARDED_AUTH_HEADERS if (value := request.headers.get(name))}
+
+
+def _caller_scoped_repository(
+    settings: Settings, session: requests.Session
+) -> Callable[[Request], ProfileRepository]:
+    def build(request: Request) -> ProfileRepository:
+        return build_profile_repository(
+            settings,
+            headers_provider=lambda: _forwarded_auth_headers(request),
+            session=session,
+        )
+
+    return build
+
+
+def _access_token_verifier(settings: Settings, session: requests.Session) -> "AccessTokenVerifier":
+    """Build the JWKS-backed verifier.
+
+    Imported here rather than at module scope: PyJWT and its crypto stack are a
+    hosted-mode dependency, and the local download must start without them.
+    """
+    from webapp.auth import AccessTokenVerifier
+
+    deployment = settings.deployment
+    return AccessTokenVerifier(
+        jwks_url=f"{_bierre_ca_base_url()}{deployment.jwks_path}",
+        issuer=deployment.token_issuer,
+        audience=deployment.token_audience,
+        session=session,
+    )
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.load(_config_path())
+    hosted = settings.deployment.is_hosted
+    remote_profiles = settings.profile_repository.mode == "remote"
+    upstream_session = requests.Session() if hosted or remote_profiles else None
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        try:
+            yield
+        finally:
+            if upstream_session is not None:
+                upstream_session.close()
+
     profile_service = ProfileService(repository=build_profile_repository(settings))
 
-    app = FastAPI(title="bierre web UI", version="1.0.0")
+    app = FastAPI(title="bierre web UI", version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.profile_service = profile_service
+    app.state.upstream_session = upstream_session
+    app.state.token_verifier = _access_token_verifier(settings, upstream_session) if hosted else None
+    app.state.caller_scoped_repository = (
+        _caller_scoped_repository(settings, upstream_session) if remote_profiles else None
+    )
     app.state.search_service = SearchService(
         base_settings=settings,
         profile_loader=_profile_loader(profile_service),
@@ -474,6 +598,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     _register_error_handlers(app)
     app.include_router(api)
     app.include_router(bierre_ca)
+    # Before the proxy: /accounts/verify is a page this app renders, not a route
+    # the account service knows about.
+    app.include_router(pages.router)
+    if hosted:
+        app.include_router(
+            create_accounts_proxy_router(
+                prefix=settings.deployment.accounts_base,
+                upstream_base_url=_bierre_ca_base_url(),
+                session=upstream_session,
+            )
+        )
     # Mounted last so the API routes win; html=True serves index.html at "/".
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
     return app

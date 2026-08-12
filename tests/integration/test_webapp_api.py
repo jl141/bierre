@@ -85,16 +85,7 @@ def test_an_invalid_profile_payload_is_a_400(api_client: TestClient) -> None:
     assert "label is required" in response.json()["error"]
 
 
-def test_mutations_are_blocked_while_the_app_is_read_only(api_client: TestClient) -> None:
-    """`BIERRE_READONLY` defaults to on until the account service fronts the app."""
-    updated = api_client.put("/api/profiles/generic", json={"label": "Renamed"})
-    deleted = api_client.delete("/api/profiles/generic")
-
-    assert updated.status_code == deleted.status_code == 403
-    assert updated.json() == {"error": "Log in to edit/delete profiles"}
-
-
-def test_updating_and_deleting_work_once_writes_are_enabled(api_client: TestClient, writable_api) -> None:
+def test_updating_and_deleting_need_no_account_in_local_mode(api_client: TestClient) -> None:
     api_client.post("/api/profiles", json=VALID_PROFILE)
 
     updated = api_client.put("/api/profiles/hydrogel", json={"label": "Hydrogel", "default_question": "q2"})
@@ -106,7 +97,7 @@ def test_updating_and_deleting_work_once_writes_are_enabled(api_client: TestClie
     assert api_client.get("/api/profiles/hydrogel").status_code == 404
 
 
-def test_deleting_a_built_in_profile_is_a_403(api_client: TestClient, writable_api) -> None:
+def test_deleting_a_built_in_profile_is_a_403(api_client: TestClient) -> None:
     response = api_client.delete("/api/profiles/generic")
 
     assert response.status_code == 403
@@ -147,7 +138,7 @@ def test_an_oversized_body_is_rejected_by_the_middleware(api_client: TestClient)
     assert response.json() == {"error": "Request body too large."}
 
 
-def test_a_contract_violation_from_core_becomes_a_400(api_client: TestClient, writable_api) -> None:
+def test_a_contract_violation_from_core_becomes_a_400(api_client: TestClient) -> None:
     """A profile with no default question + an empty box has nothing to search."""
     api_client.put("/api/profiles/generic", json={"label": "Generic", "default_question": ""})
 

@@ -37,3 +37,16 @@ selection:
   enabled: true
   top_n: 25
   min_relevance: 30.0
+
+# Run mode. Leave this alone for a local install: "local" means no accounts, no
+# network dependency, and profile writes available to whoever is at the keyboard.
+# "hosted" is set only by the deployment that runs bierre-ca alongside this app —
+# it turns on the /accounts proxy, verifies access tokens, and makes profile
+# writes require a signed-in caller. A hosted deployment sets
+# profile_repository.mode: remote in the same file.
+deployment:
+  mode: local              # local | hosted
+  accounts_base: /accounts # path the front-end proxies to bierre-ca (hosted only)
+  auth_methods: [password] # rendered as sign-in buttons; a method absent here gets no button
+  token_issuer: https://bierre.ca/accounts
+  token_audience: bierre-api

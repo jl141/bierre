@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import requests
+
 JSON_HEADERS = {"Content-Type": "application/json"}
 
 
@@ -38,6 +40,10 @@ class FakeResponse:
         if self._json_error is not None:
             raise self._json_error
         return self._json_data
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"HTTP {self.status_code}", response=self)
 
 
 class ScriptedSession:

@@ -13,6 +13,8 @@ from typing import Any
 import yaml
 
 ALL_SOURCES = ["openalex", "crossref", "pubmed", "europepmc", "semantic_scholar"]
+DEPLOYMENT_MODES = ("local", "hosted")
+AUTH_METHODS = ("magic_link", "password", "google", "orcid")
 
 
 @dataclass
@@ -47,6 +49,38 @@ class ProfileRepositorySettings:
 
 
 @dataclass
+class DeploymentSettings:
+    """Which run mode this process serves, and how it verifies account tokens.
+
+    The mode is declared, never inferred: a hosted deployment that failed to say
+    so would fall back to local rules and hand anonymous callers write access to
+    every profile, so an unrecognised value is a start-up failure instead.
+    """
+
+    mode: str = "local"
+    accounts_base: str = "/accounts"
+    auth_methods: list[str] = field(default_factory=lambda: ["password"])
+    token_issuer: str = "https://bierre.ca/accounts"
+    token_audience: str = "bierre-api"
+
+    def __post_init__(self) -> None:
+        if self.mode not in DEPLOYMENT_MODES:
+            raise ValueError(f"deployment.mode must be one of {list(DEPLOYMENT_MODES)}, got {self.mode!r}")
+        unknown = [method for method in self.auth_methods if method not in AUTH_METHODS]
+        if unknown:
+            raise ValueError(f"deployment.auth_methods has unknown entries: {unknown}")
+        self.accounts_base = "/" + str(self.accounts_base or "").strip().strip("/")
+
+    @property
+    def is_hosted(self) -> bool:
+        return self.mode == "hosted"
+
+    @property
+    def jwks_path(self) -> str:
+        return f"{self.accounts_base}/.well-known/jwks.json"
+
+
+@dataclass
 class Settings:
     profile: str = "generic"
     contact_email: str = ""
@@ -55,6 +89,7 @@ class Settings:
     search: SearchSettings = field(default_factory=SearchSettings)
     selection: SelectionSettings = field(default_factory=SelectionSettings)
     profile_repository: ProfileRepositorySettings = field(default_factory=ProfileRepositorySettings)
+    deployment: DeploymentSettings = field(default_factory=DeploymentSettings)
 
     def api_key(self, source: str) -> str:
         return str(self.api_keys.get(source) or "").strip()
@@ -65,6 +100,7 @@ class Settings:
         search = {**(data.get("search") or {})}
         selection = {**(data.get("selection") or {})}
         profile_repository = {**(data.get("profile_repository") or {})}
+        deployment = {**(data.get("deployment") or {})}
         return cls(
             profile=data.get("profile", cls.profile),
             contact_email=str(data.get("contact_email") or "").strip(),
@@ -80,6 +116,9 @@ class Settings:
                     for k, v in profile_repository.items()
                     if k in ProfileRepositorySettings.__annotations__
                 }
+            ),
+            deployment=DeploymentSettings(
+                **{k: v for k, v in deployment.items() if k in DeploymentSettings.__annotations__}
             ),
         )
 

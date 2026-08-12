@@ -5,7 +5,9 @@ real `requests` transport, real sockets and real JSON encoding, without
 depending on bierre-ca being up.
 
 State lives on the server instance (not the handler class), so two servers in
-the same test session never share profiles.
+the same test session never share profiles. Every request is recorded on
+``server.received`` as well, which is how the proxy tests check that a caller's
+credentials arrived rather than the service's own.
 """
 
 from __future__ import annotations
@@ -38,12 +40,16 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+RECORDED_REQUEST_HEADERS = ("authorization", "cookie", "x-csrf-token")
+
+
 class _Store:
     def __init__(self) -> None:
         now = _now_iso()
         self.profiles: dict[str, dict] = {"generic": dict(_GENERIC_PROFILE)}
         self.created_at: dict[str, str] = {"generic": now}
         self.updated_at: dict[str, str] = {"generic": now}
+        self.received: list[dict] = []
 
 
 class _ProfileApiHandler(BaseHTTPRequestHandler):
@@ -56,6 +62,7 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
     # --- routes ---------------------------------------------------------
 
     def do_GET(self) -> None:
+        self._record()
         store = self.store
         if self.path == "/api/profiles":
             meta = [
@@ -82,6 +89,7 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
         self._send_json({"id": profile_id, "profile": payload})
 
     def do_POST(self) -> None:
+        self._record()
         if self.path != "/api/profiles":
             self._send_json({"error": "not found"}, status=404)
             return
@@ -103,6 +111,7 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
         self._send_json({"id": profile_id, "profile": profile}, status=201)
 
     def do_PUT(self) -> None:
+        self._record()
         store = self.store
         profile_id = self._path_profile_id()
         if profile_id is None or profile_id not in store.profiles:
@@ -115,6 +124,7 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
         self._send_json({"id": profile_id, "profile": merged})
 
     def do_DELETE(self) -> None:
+        self._record()
         store = self.store
         profile_id = self._path_profile_id()
         if profile_id is None or profile_id not in store.profiles:
@@ -129,6 +139,15 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
         self._send_json({"deleted": profile_id})
 
     # --- plumbing -------------------------------------------------------
+
+    def _record(self) -> None:
+        self.store.received.append(
+            {
+                "method": self.command,
+                "path": self.path,
+                "headers": {name: self.headers.get(name) for name in RECORDED_REQUEST_HEADERS},
+            }
+        )
 
     def _path_profile_id(self) -> str | None:
         if not self.path.startswith("/api/profiles/"):
@@ -154,15 +173,15 @@ class _ProfileApiHandler(BaseHTTPRequestHandler):
 
 
 @contextmanager
-def profile_api_server() -> Iterator[str]:
-    """Run the mock profile API on an ephemeral loopback port; yield its base URL."""
+def profile_api_server() -> Iterator[tuple[str, list[dict]]]:
+    """Run the mock profile API on a loopback port; yield its base URL and log."""
     server = ThreadingHTTPServer(("127.0.0.1", 0), _ProfileApiHandler)
     server.store = _Store()  # type: ignore[attr-defined]
     thread = threading.Thread(target=server.serve_forever, name="mock-profile-api", daemon=True)
     thread.start()
     host, port = server.server_address[:2]
     try:
-        yield f"http://{host}:{port}"
+        yield f"http://{host}:{port}", server.store.received  # type: ignore[attr-defined]
     finally:
         server.shutdown()
         server.server_close()

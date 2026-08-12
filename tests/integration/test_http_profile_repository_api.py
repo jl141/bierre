@@ -21,7 +21,7 @@ from tests.support.profile_api import profile_api_server
 
 @pytest.fixture
 def remote_repo():
-    with profile_api_server() as base_url:
+    with profile_api_server() as (base_url, _):
         yield HttpProfileRepository(base_url=base_url, timeout_seconds=3)
 
 
@@ -57,7 +57,7 @@ def test_server_side_conflicts_and_protections_map_to_domain_errors(remote_repo:
 
 
 def test_an_unreachable_server_raises_a_store_error() -> None:
-    with profile_api_server() as base_url:
+    with profile_api_server() as (base_url, _):
         dead_url = base_url
     repo = HttpProfileRepository(
         base_url=dead_url, timeout_seconds=1, retry_policy=_RetryPolicy(max_attempts=1)
@@ -68,7 +68,7 @@ def test_an_unreachable_server_raises_a_store_error() -> None:
 
 
 def test_two_servers_do_not_share_state() -> None:
-    with profile_api_server() as first_url, profile_api_server() as second_url:
+    with profile_api_server() as (first_url, _), profile_api_server() as (second_url, _):
         HttpProfileRepository(base_url=first_url).create_profile({"label": "only-here"})
 
         second = HttpProfileRepository(base_url=second_url)

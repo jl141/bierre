@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import yaml
 
 from core.config import ALL_SOURCES, Settings
@@ -77,3 +78,29 @@ def test_source_http_overrides_survive_the_round_trip(tmp_path) -> None:
     settings = Settings.load(path)
 
     assert settings.search.source_http_overrides == {"crossref": {"max_attempts": 2}}
+
+
+def test_the_deployment_mode_defaults_to_local() -> None:
+    deployment = Settings().deployment
+
+    assert deployment.mode == "local"
+    assert deployment.is_hosted is False
+
+
+def test_an_unrecognised_mode_refuses_to_load() -> None:
+    """Falling back to local would hand a hosted deployment's profiles to anyone."""
+    with pytest.raises(ValueError, match="deployment.mode"):
+        Settings.from_dict({"deployment": {"mode": "hostedd"}})
+
+
+def test_an_unknown_auth_method_refuses_to_load() -> None:
+    """The front-end renders this list; an unrenderable entry is a dead button."""
+    with pytest.raises(ValueError, match="auth_methods"):
+        Settings.from_dict({"deployment": {"auth_methods": ["password", "passkey"]}})
+
+
+def test_the_accounts_base_is_normalised_to_one_leading_slash() -> None:
+    deployment = Settings.from_dict({"deployment": {"accounts_base": "accounts/"}}).deployment
+
+    assert deployment.accounts_base == "/accounts"
+    assert deployment.jwks_path == "/accounts/.well-known/jwks.json"

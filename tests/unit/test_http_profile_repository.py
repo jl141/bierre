@@ -172,3 +172,28 @@ def test_transport_failures_surface_as_store_errors(monkeypatch) -> None:
         _repo(session).list_profiles()
 
     assert len(session.calls) == 2  # retried once
+
+
+def test_the_headers_provider_is_consulted_on_every_call() -> None:
+    """A token captured at construction would pin the repository to one user."""
+    session = ScriptedSession([FakeResponse(json_data={"profiles_meta": []}) for _ in range(2)])
+    tokens = iter(["Bearer first", "Bearer second"])
+    repo = _repo(session, headers_provider=lambda: {"Authorization": next(tokens)})
+
+    repo.list_profiles()
+    repo.list_profiles()
+
+    assert [call["headers"]["Authorization"] for call in session.calls] == ["Bearer first", "Bearer second"]
+
+
+def test_the_headers_provider_wins_over_the_constructed_headers() -> None:
+    session = ScriptedSession([FakeResponse(json_data={"profiles_meta": []})])
+    repo = _repo(
+        session,
+        headers={"Authorization": "Bearer service", "X-Client": "bierre"},
+        headers_provider=lambda: {"Authorization": "Bearer caller"},
+    )
+
+    repo.list_profiles()
+
+    assert session.calls[0]["headers"] == {"Authorization": "Bearer caller", "X-Client": "bierre"}

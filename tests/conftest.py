@@ -26,7 +26,6 @@ REAL_PROFILES_DIR = PROJECT_ROOT / "profiles"
 _LOOPBACK_HOSTS = {"127.0.0.1", "::1", "localhost", ""}
 _BIERRE_ENV_VARS = (
     "BIERRE_CONFIG",
-    "BIERRE_READONLY",
     "BIERRE_CA_BASE_URL",
     "BIERRE_CA_API_KEY",
 )

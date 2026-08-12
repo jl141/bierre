@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,7 +31,13 @@ class _RetryPolicy:
 
 
 class HttpProfileRepository(ProfileRepository):
-    """Repository adapter that maps HTTP errors to domain errors."""
+    """Repository adapter that maps HTTP errors to domain errors.
+
+    ``headers`` is deployment-level and fixed at construction. ``headers_provider``
+    is resolved on every call and wins over it, which is what lets one repository
+    speak for whichever end user is making the current request — a credential
+    captured at construction time could only ever act as the service itself.
+    """
 
     def __init__(
         self,
@@ -39,6 +46,7 @@ class HttpProfileRepository(ProfileRepository):
         timeout_seconds: int = 20,
         retry_policy: _RetryPolicy | None = None,
         headers: dict[str, str] | None = None,
+        headers_provider: Callable[[], dict[str, str]] | None = None,
         session: requests.Session | None = None,
     ) -> None:
         base_url = str(base_url or "").strip().rstrip("/")
@@ -48,6 +56,7 @@ class HttpProfileRepository(ProfileRepository):
         self._timeout_seconds = max(1, int(timeout_seconds))
         self._retry_policy = retry_policy or _RetryPolicy()
         self._headers = dict(headers or {})
+        self._headers_provider = headers_provider
         self._session = session or requests.Session()
 
     def list_profiles(self) -> list[ProfileSummary]:
@@ -86,6 +95,7 @@ class HttpProfileRepository(ProfileRepository):
 
     def _request(self, method: str, path: str, json_payload: dict | None = None) -> dict[str, Any]:
         url = f"{self._base_url}{path}"
+        headers = self._request_headers()
         last_exc: Exception | None = None
         policy = self._retry_policy
 
@@ -96,7 +106,7 @@ class HttpProfileRepository(ProfileRepository):
                     url=url,
                     json=json_payload,
                     timeout=self._timeout_seconds,
-                    headers=self._headers,
+                    headers=headers,
                 )
             except requests.RequestException as exc:
                 last_exc = exc
@@ -121,6 +131,11 @@ class HttpProfileRepository(ProfileRepository):
             return payload
 
         raise ProfileStoreError(f"HTTP repository request exhausted retries: {last_exc}")
+
+    def _request_headers(self) -> dict[str, str]:
+        if self._headers_provider is None:
+            return dict(self._headers)
+        return {**self._headers, **self._headers_provider()}
 
     def _sleep_for_attempt(self, attempt: int) -> None:
         base = self._retry_policy.backoff_base_seconds
