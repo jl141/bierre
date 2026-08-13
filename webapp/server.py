@@ -615,7 +615,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def _config_path() -> Path | None:
-    raw = (os.environ.get("BIERRE_CONFIG") or "").strip()
+    raw = (os.environ.get("BIERRE_CONFIG") or "config.yaml").strip()
     return Path(raw) if raw else None
 
 
@@ -638,7 +638,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     _configure_logging()
-    uvicorn.run(create_app(Settings.load(args.config)), host=args.host, port=args.port)
+    uvicorn.run(create_app(Settings.load(args.config or _config_path())), host=args.host, port=args.port)
     return 0
 
 
