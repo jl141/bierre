@@ -222,7 +222,7 @@ export function createSearchView({ store }) {
     });
 
     try {
-      const response = await stream("/api/run", {
+      const response = await stream("/api/run/", {
         method: "POST",
         body: {
           question: questionInput.value,
