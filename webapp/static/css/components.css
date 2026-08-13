@@ -49,6 +49,12 @@
   flex: 1 1 auto;
 }
 
+/* The write affordances are grouped in one element so they can appear and
+   disappear together, but they must still be flex items of the row above. */
+.profile-actions {
+  display: contents;
+}
+
 .btn-icon {
   min-width: 36px;
   height: 36px;
@@ -746,4 +752,130 @@ tbody tr { transition: background 0.1s; }
 
 .profile-ai-modal .profile-field textarea {
   min-height: 140px;
+}
+
+/* ── Auth and account forms ─────────────────────────────────────────────────── */
+/* Logical properties and tokens throughout: the U0 pass converts the physical
+   properties above and must find nothing to undo here. */
+
+.auth-panel,
+.account-panel {
+  /* A sign-in form is read in one column; measured in `ch` so the line length
+     holds when a user scales the text up rather than the window. */
+  max-inline-size: 52ch;
+  margin-inline: auto;
+  inline-size: 100%;
+}
+
+.auth-intro {
+  margin-block: 8px 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-block-start: 18px;
+}
+
+.auth-form button[type="submit"] {
+  align-self: flex-start;
+  min-block-size: 44px;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-block label {
+  margin-block-end: 0;
+}
+
+.field-block input,
+.field-block select {
+  inline-size: 100%;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  /* 44px tall including the border: WCAG 2.5.8 asks for 24×24 and the pointer
+     targets in a form that is typed into once should be comfortable. */
+  padding-block: 11px;
+  padding-inline: 12px;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field-error[hidden] {
+  display: none;
+}
+
+.field-block input[aria-invalid="true"] {
+  border-color: var(--danger);
+  /* Colour is never the only carrier (WCAG 1.4.1): the message under the field
+     says what is wrong, and `aria-invalid` says it to assistive technology. */
+  border-inline-start-width: 3px;
+}
+
+.auth-consent,
+.auth-alternate,
+.auth-unavailable {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-consent a,
+.auth-alternate a {
+  color: var(--accent-strong);
+}
+
+.auth-alternate a {
+  /* An inline link is a 24×24 target too. */
+  display: inline-block;
+  min-block-size: 24px;
+  font-weight: 600;
+}
+
+.account-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 14px;
+  margin-block: 16px 0;
+  font-size: 14px;
+}
+
+.account-facts dt {
+  color: var(--muted);
+}
+
+.account-facts dd {
+  margin: 0;
+}
+
+/* Focus indicators for the controls added above. The global pass over every
+   interactive element — including the ones that have no `:focus-visible` rule at
+   all today — is U0's job (UI PRD §8, failure 1). */
+.field-block input:focus-visible,
+.field-block select:focus-visible,
+.auth-form button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--accent);
 }

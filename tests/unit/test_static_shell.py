@@ -30,11 +30,14 @@ EXPECTED_MODULES = (
     "lib/dom.js",
     "lib/format.js",
     "lib/router.js",
+    "lib/session.js",
     "lib/storage.js",
     "lib/store.js",
+    "views/account.js",
     "views/search.js",
     "views/results.js",
     "views/settings.js",
+    "views/signin.js",
     "components/nav.js",
     "components/account-menu.js",
     "components/footer.js",
@@ -185,6 +188,38 @@ def test_the_access_token_cannot_reach_a_storage_api() -> None:
     assert "localStorage" not in source
     assert "sessionStorage" not in source
     assert "document.cookie =" not in source
+
+
+@pytest.mark.parametrize("path", JS_FILES, ids=lambda path: path.name)
+def test_no_module_persists_anything_outside_localstorage(path: Path) -> None:
+    """The other half of the WS-F guarantee, across the whole front end.
+
+    `sessionStorage` and a written cookie are the two caches that would survive a
+    reload — which is exactly the property that makes them wrong for a
+    credential. Reading `document.cookie` is allowed: the double-submit CSRF
+    token is a readable cookie by design.
+    """
+    source = _code(path)
+
+    assert "sessionStorage" not in source
+    assert "document.cookie =" not in source
+    assert "document.cookie=" not in source
+
+
+def test_only_the_network_and_session_modules_name_the_wire_token() -> None:
+    """A view that touches `access_token` is a view holding a credential.
+
+    `lib/api.js` owns the token in a module variable and `lib/session.js` is what
+    hands it over after a sign-in; any third mention is a copy of it living
+    somewhere it can be reached from.
+    """
+    holders = {
+        path.relative_to(STATIC_DIR).as_posix()
+        for path in JS_FILES
+        if "access_token" in _code(path)
+    }
+
+    assert holders == {"lib/api.js", "lib/session.js"}
 
 
 @pytest.mark.parametrize("path", JS_FILES, ids=lambda path: path.name)

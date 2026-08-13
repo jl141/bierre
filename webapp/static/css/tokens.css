@@ -13,6 +13,11 @@
   --row-hover: #d4e2de;
   --danger: #875449;
   --danger-hover: #6f4037;
+  /* Focus indicator. Same ink as --accent-strong, named separately because the
+     U0 pass has to be able to change one without the other: this value carries a
+     WCAG 2.4.11 obligation (≈7.9:1 on --surface, well over the required 3:1),
+     the accent is free to be decorative. */
+  --focus-ring: var(--accent-strong);
   --gradient-ramp: linear-gradient(
     47deg,
     #8e9b90,

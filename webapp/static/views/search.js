@@ -79,6 +79,36 @@ export function createSearchView({ store }) {
     onClick: deleteSelectedProfile,
   }, "Delete");
 
+  const profileActions = h("span", { class: "profile-actions" });
+  let writable = null;
+
+  /**
+   * Write affordances are absent, never disabled, when this client may not write.
+   *
+   * `profile_write` answers for the *current caller*, so it flips when the user
+   * signs in or out and this cannot be read once at build time — the view's DOM
+   * is built once and kept across navigations.
+   */
+  function renderProfileActions() {
+    const allowed = store.get().capabilities?.profile_write !== false;
+    if (allowed === writable) return;
+
+    writable = allowed;
+    profileActions.replaceChildren(
+      ...(allowed
+        ? [
+            createProfileButton,
+            editProfileButton,
+            // Deletion is reachable from the profile library in U4; the button
+            // stays built but hidden so the wiring does not rot.
+            h("span", { hidden: true }, deleteProfileButton),
+          ]
+        : []),
+    );
+  }
+
+  store.subscribe(renderProfileActions);
+
   function build() {
     const statusElement = h("p", { class: "status", id: "status", hidden: true });
     status = createStatus(statusElement);
@@ -93,7 +123,7 @@ export function createSearchView({ store }) {
       onError: (message) => status.text(message, { error: true }),
     });
 
-    const writable = store.get().capabilities?.profile_write !== false;
+    renderProfileActions();
 
     const searchPanel = h(
       "section",
@@ -111,18 +141,7 @@ export function createSearchView({ store }) {
             "div",
             { class: "field" },
             h("label", { for: "profile" }, "Domain profile"),
-            h(
-              "div",
-              { class: "profile-select-row" },
-              profileSelect,
-              // Absent rather than disabled when this client may not write —
-              // an affordance that cannot work should not be on screen.
-              writable ? createProfileButton : null,
-              writable ? editProfileButton : null,
-              // Deletion is reachable from the profile library in U4; the
-              // button stays built but hidden so the wiring does not rot.
-              writable ? h("span", { hidden: true }, deleteProfileButton) : null,
-            ),
+            h("div", { class: "profile-select-row" }, profileSelect, profileActions),
           ),
           h("label", { class: "checkbox" }, offlineInput, " Offline test (mock data)"),
           runButton,
@@ -222,7 +241,7 @@ export function createSearchView({ store }) {
     });
 
     try {
-      const response = await stream("/api/run/", {
+      const response = await stream("/api/run", {
         method: "POST",
         body: {
           question: questionInput.value,

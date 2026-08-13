@@ -8,10 +8,15 @@ runs, which is what keeps the local download forkable by someone who only has Py
 index.html      app shell only: skip link, header, nav, <main> outlet, footer, the two dialogs
 app.js          entry point; fetches capabilities, builds the shell, starts the router
 css/            tokens → base → components → layout, linked in that cascade order
-lib/            dom.js store.js router.js api.js storage.js format.js
-views/          search.js results.js settings.js
+lib/            dom.js store.js router.js api.js session.js storage.js format.js
+views/          search.js results.js settings.js signin.js account.js
 components/     nav.js account-menu.js footer.js status.js profile-dialog.js
 ```
+
+`lib/api.js` owns the access token; `lib/session.js` owns everything that has to happen
+around it — the silent refresh at boot, the capability refetch after a sign-in or sign-out,
+the locale negotiation, and the plain-language copy for every failure the auth routes can
+produce. A view never touches `access_token`, and a test asserts that.
 
 Authority for the layout is `hyLdwJ/PRDs/PRD_UI_UX_REVAMP_AND_USER_FEATURES.md` §3.4.
 

@@ -102,6 +102,121 @@
 .account-link:hover {
   background: var(--bg);
 }
+.account-link:focus-visible,
+.account-menu-summary:focus-visible,
+.account-menu-action:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Account menu ───────────────────────────────────────────────────────────── */
+/* A `<details>` disclosure, positioned as a popover. `position: relative` on the
+   wrapper rather than on the `<details>` so the panel is measured from the slot
+   even while the summary label changes width. */
+.account-slot-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.account-menu-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 36px;
+  max-inline-size: 22ch;
+  padding-block: 6px;
+  padding-inline: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  /* The default marker is a triangle whose direction says nothing useful here;
+     `::after` below replaces it. `list-style` is how a summary loses it. */
+  list-style: none;
+  /* An email address is long and must not push the nav off the header. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-menu-summary::-webkit-details-marker { display: none; }
+.account-menu-summary::marker { display: none; }
+.account-menu-summary::after {
+  content: "\25BE";
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.account-menu[open] .account-menu-summary::after {
+  transform: rotate(-180deg);
+}
+.account-menu-summary:hover {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.account-menu-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-end: 0;
+  z-index: 100;
+  min-inline-size: 15rem;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 8%);
+}
+
+.account-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One shape for the link and the two buttons, so the menu reads as one list
+   rather than a link and two form controls. */
+.account-menu-action {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding-block: 6px;
+  padding-inline: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+.account-menu-action:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--ink);
+}
+.account-menu-action:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.account-menu-error {
+  margin-block: 6px 0;
+  margin-inline: 0;
+  padding-inline: 10px;
+  color: var(--danger);
+  font-size: 13px;
+}
+.account-menu-error[hidden] {
+  display: none;
+}
 
 main {
   max-width: 1040px;
