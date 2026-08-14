@@ -1,13 +1,20 @@
 /**
  * Search view: the question form, the profile picker, the settings panel and
  * the results table. The `#/` route.
+ *
+ * Profile *management* is not here any more. The dropdown stays — it is the
+ * right primitive for switching quickly, and UI PRD §6.2 says so explicitly —
+ * but creating, editing, duplicating, importing and deleting moved to
+ * `#/profiles`, so this view only links to them. What is left in the store is
+ * the coupling: the library sets `profileSelection` and this view follows it,
+ * which is how "Use this profile" lands the user back on a prepared search box.
  */
 
 import { h } from "../lib/dom.js";
-import { readNdjson, request, stream } from "../lib/api.js";
+import { readNdjson, stream } from "../lib/api.js";
 import { appStorage } from "../lib/storage.js";
+import { describeProfileError, refreshProfileList } from "../lib/profiles.js";
 import { createStatus } from "../components/status.js";
-import { createProfileDialog } from "../components/profile-dialog.js";
 import { createResultsPanel } from "./results.js";
 import { createSettingsPanel } from "./settings.js";
 
@@ -24,7 +31,6 @@ export function createSearchView({ store }) {
   let status = null;
   let results = null;
   let settingsPanel = null;
-  let dialog = null;
 
   const questionInput = h("textarea", {
     id: "question",
@@ -40,6 +46,9 @@ export function createSearchView({ store }) {
     onChange: () => {
       saveQueryState();
       updateProfileActions();
+      // The store holds the current choice so the library and this view cannot
+      // disagree about which profile the next run uses.
+      store.set({ profileSelection: selectedProfileId() });
     },
   });
 
@@ -52,32 +61,23 @@ export function createSearchView({ store }) {
 
   const runButton = h("button", { type: "submit", id: "run-btn" }, "Run search");
 
-  const createProfileButton = h("button", {
-    type: "button",
-    id: "profile-create-btn",
-    class: "btn-icon",
-    "aria-label": "Create profile",
-    title: "Create profile",
-    onClick: () => dialog.openCreate(),
-  }, "+");
+  const newProfileLink = h("a", {
+    id: "profile-new-link",
+    class: "btn-ghost btn-link",
+    href: "#/profiles/new",
+  }, "New");
 
-  const editProfileButton = h("button", {
-    type: "button",
-    id: "profile-edit-btn",
-    class: "btn-icon btn-ghost",
-    "aria-label": "Edit selected profile",
-    title: "Edit selected profile",
-    onClick: () => dialog.openEdit(selectedProfileId()),
+  const editProfileLink = h("a", {
+    id: "profile-edit-link",
+    class: "btn-ghost btn-link",
+    href: "#/profiles",
   }, "Edit");
 
-  const deleteProfileButton = h("button", {
-    type: "button",
-    id: "profile-delete-btn",
-    class: "btn-icon btn-danger",
-    "aria-label": "Delete selected profile",
-    title: "Delete selected profile",
-    onClick: deleteSelectedProfile,
-  }, "Delete");
+  const libraryLink = h("a", {
+    id: "profile-library-link",
+    class: "btn-ghost btn-link",
+    href: "#/profiles",
+  }, "All profiles");
 
   const profileActions = h("span", { class: "profile-actions" });
   let writable = null;
@@ -87,7 +87,8 @@ export function createSearchView({ store }) {
    *
    * `profile_write` answers for the *current caller*, so it flips when the user
    * signs in or out and this cannot be read once at build time — the view's DOM
-   * is built once and kept across navigations.
+   * is built once and kept across navigations. The library link is not gated:
+   * reading the built-ins needs no account.
    */
   function renderProfileActions() {
     const allowed = store.get().capabilities?.profile_write !== false;
@@ -95,33 +96,31 @@ export function createSearchView({ store }) {
 
     writable = allowed;
     profileActions.replaceChildren(
-      ...(allowed
-        ? [
-            createProfileButton,
-            editProfileButton,
-            // Deletion is reachable from the profile library in U4; the button
-            // stays built but hidden so the wiring does not rot.
-            h("span", { hidden: true }, deleteProfileButton),
-          ]
-        : []),
+      ...(allowed ? [newProfileLink, editProfileLink, libraryLink] : [libraryLink]),
     );
   }
 
-  store.subscribe(renderProfileActions);
+  /**
+   * Re-render on the two store changes this view depends on: the profile list
+   * (something was created or deleted on `#/profiles`) and the selection (the
+   * library's "Use" action).
+   */
+  let renderedProfiles = null;
+  store.subscribe((state) => {
+    renderProfileActions();
+    if (state.profiles !== renderedProfiles) {
+      renderedProfiles = state.profiles;
+      renderProfileOptions(state.profileSelection);
+    } else if (state.profileSelection && state.profileSelection !== profileSelect.value) {
+      renderProfileOptions(state.profileSelection);
+    }
+  });
 
   function build() {
     const statusElement = h("p", { class: "status", id: "status", hidden: true });
     status = createStatus(statusElement);
     results = createResultsPanel({ store });
     settingsPanel = createSettingsPanel({ store });
-    dialog = createProfileDialog({
-      store,
-      onSaved: async (profileId) => {
-        await loadProfiles(profileId);
-        status.text("Profile saved.");
-      },
-      onError: (message) => status.text(message, { error: true }),
-    });
 
     renderProfileActions();
 
@@ -143,7 +142,8 @@ export function createSearchView({ store }) {
             h("label", { for: "profile" }, "Domain profile"),
             h("div", { class: "profile-select-row" }, profileSelect, profileActions),
           ),
-          h("label", { class: "checkbox" }, offlineInput, " Offline test (mock data)"),
+          // TODO: remove this button and associated logic
+          // h("label", { class: "checkbox" }, offlineInput, " Offline test (mock data)"),
           runButton,
         ),
       ),
@@ -157,10 +157,19 @@ export function createSearchView({ store }) {
     return String(profileSelect.value || "").trim();
   }
 
+  /**
+   * The Edit link points at the selected profile, and says which one it is: five
+   * identical "Edit" links in a screen reader's link list are five dead ends.
+   * With nothing selected there is nothing to edit, so the link is absent.
+   */
   function updateProfileActions() {
-    const hasSelection = Boolean(selectedProfileId());
-    editProfileButton.disabled = !hasSelection;
-    deleteProfileButton.disabled = !hasSelection;
+    const profileId = selectedProfileId();
+    const label = store.get().profiles.find((profile) => profile.id === profileId)?.label || profileId;
+
+    editProfileLink.hidden = !profileId;
+    if (!profileId) return;
+    editProfileLink.href = `#/profiles/${encodeURIComponent(profileId)}`;
+    editProfileLink.setAttribute("aria-label", `Edit profile ${label}`);
   }
 
   function saveQueryState() {
@@ -179,6 +188,11 @@ export function createSearchView({ store }) {
 
   function renderProfileOptions(preferred) {
     const { profiles, defaultProfile } = store.get();
+    // No list yet (the first store notification arrives before the fetch
+    // resolves): leaving early keeps `saveQueryState` from writing an empty
+    // selection over the profile the user had chosen in a previous session.
+    if (!profiles.length) return;
+
     profileSelect.replaceChildren(
       ...profiles.map((profile) => h("option", { value: profile.id }, profile.label)),
     );
@@ -199,29 +213,13 @@ export function createSearchView({ store }) {
     saveQueryState();
   }
 
-  async function loadProfiles(preferred) {
-    const data = await request("/api/profiles");
-    const profiles = Array.isArray(data.profiles_meta)
-      ? data.profiles_meta
-      : (data.profiles || []).map((name) => ({ id: name, label: name }));
-
-    store.set({ profiles, defaultProfile: data.default });
-    renderProfileOptions(preferred);
-  }
-
-  async function deleteSelectedProfile() {
-    const profileId = selectedProfileId();
-    if (!profileId) return;
-
-    const label = store.get().profiles.find((item) => item.id === profileId)?.label || profileId;
-    if (!window.confirm(`Delete profile "${label}"? This cannot be undone.`)) return;
-
+  /** The store subscription above renders the options this resolves. */
+  async function loadProfiles() {
     try {
-      await request(`/api/profiles/${encodeURIComponent(profileId)}`, { method: "DELETE" });
-      await loadProfiles();
-      status.text(`Profile "${label}" deleted.`);
+      await refreshProfileList(store);
     } catch (error) {
-      status.text(`Error: ${error.message}`, { error: true });
+      const { message } = describeProfileError(error);
+      status.text(message, { error: true });
     }
   }
 
@@ -272,9 +270,11 @@ export function createSearchView({ store }) {
         element = build();
         restoreQueryState();
         settingsPanel.load();
-        loadProfiles().catch((error) => status.text(`Error: ${error.message}`, { error: true }));
       }
       outlet.append(element);
+      // Refreshed on every visit, not only the first: a profile may have been
+      // created, renamed or deleted on `#/profiles` since this view was built.
+      loadProfiles();
     },
 
     // The view keeps its DOM (and the last result) between navigations; the

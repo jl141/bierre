@@ -55,17 +55,6 @@
   display: contents;
 }
 
-.btn-icon {
-  min-width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
 .btn-danger {
   background: var(--danger);
 }
@@ -219,6 +208,7 @@ tbody tr:hover { background: var(--row-hover); }
   padding: 6px 12px;
   font-weight: 500;
   transition: color 0.12s, border-color 0.12s, background 0.12s;
+  border-radius: 6px;
 }
 .btn-ghost:hover:not(:disabled) {
   background: var(--bg);
@@ -522,7 +512,7 @@ tbody tr { transition: background 0.1s; }
   gap: 12px;
 }
 
-.profile-modal-head h3 {
+.profile-modal-head h2 {
   margin: 0;
   font-size: 20px;
 }
@@ -532,85 +522,6 @@ tbody tr { transition: background 0.1s; }
   font-size: 13px;
   color: var(--muted);
   max-width: 64ch;
-}
-
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.profile-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.profile-field-wide {
-  grid-column: 1 / -1;
-}
-
-.profile-field input,
-.profile-field textarea {
-  width: 100%;
-  font: inherit;
-  color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-}
-
-.profile-field textarea {
-  min-height: 72px;
-  resize: vertical;
-  line-height: 1.5;
-}
-
-.profile-field input:focus,
-.profile-field textarea:focus {
-  outline: 2px solid rgba(92, 107, 115, 0.25);
-  border-color: var(--accent);
-}
-
-.tip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  font-size: 11px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  background: #fff;
-  cursor: help;
-  margin-left: 3px;
-}
-
-.profile-list-label {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  margin-bottom: 0;
-}
-
-.label-tools {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.profile-list-add {
-  min-width: 28px;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  font-size: 18px;
-  line-height: 1;
 }
 
 .profile-list {
@@ -629,9 +540,11 @@ tbody tr { transition: background 0.1s; }
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98));
 }
 
+/* Auto-fit rather than a fixed count: a concept row has three controls and a
+   bucket row has six, and both have to stay readable without their own rule. */
 .profile-item-body {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 10px;
   align-items: start;
 }
@@ -641,15 +554,6 @@ tbody tr { transition: background 0.1s; }
   flex-direction: column;
   gap: 6px;
   margin: 0;
-}
-
-.profile-subfield-label {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.profile-subfield-compact textarea {
-  min-height: 72px;
 }
 
 .profile-subfield-wide {
@@ -662,48 +566,19 @@ tbody tr { transition: background 0.1s; }
 
 .profile-item-remove {
   align-self: start;
-  min-width: 28px;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  font-size: 14px;
-  line-height: 1;
+  /* WCAG 2.5.8: 24×24 is the floor for a pointer target. */
+  min-block-size: 24px;
+  white-space: nowrap;
 }
 
-.tip:focus-visible {
-  outline: 2px solid rgba(92, 107, 115, 0.25);
-  outline-offset: 2px;
-}
-
-.hover-tip {
-  position: fixed;
-  z-index: 9999;
-  max-width: min(360px, calc(100vw - 24px));
-  padding: 9px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  font-size: 12px;
-  line-height: 1.35;
-  font-weight: 500;
-  white-space: pre-line;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
-  pointer-events: none;
-}
-
-.hover-tip[hidden] {
-  display: none;
-}
-
-.profile-advanced {
+.profile-advanced-panel {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.5);
 }
 
-.profile-advanced > summary {
+.profile-advanced-panel > summary {
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -712,10 +587,10 @@ tbody tr { transition: background 0.1s; }
   font-weight: 600;
 }
 
-.profile-advanced > summary::-webkit-details-marker { display: none; }
-.profile-advanced > summary::marker { display: none; }
+.profile-advanced-panel > summary::-webkit-details-marker { display: none; }
+.profile-advanced-panel > summary::marker { display: none; }
 
-.profile-advanced > summary::before {
+.profile-advanced-panel > summary::before {
   content: "▶";
   display: inline-block;
   font-size: 9px;
@@ -723,7 +598,7 @@ tbody tr { transition: background 0.1s; }
   transition: transform 0.15s;
 }
 
-.profile-advanced[open] > summary::before {
+.profile-advanced-panel[open] > summary::before {
   transform: rotate(90deg);
 }
 
@@ -742,15 +617,11 @@ tbody tr { transition: background 0.1s; }
   padding-top: 4px;
 }
 
-.profile-ai-open-btn {
-  margin-right: auto;
-}
-
 .profile-ai-modal {
   width: min(760px, calc(100vw - 32px));
 }
 
-.profile-ai-modal .profile-field textarea {
+.profile-ai-modal textarea {
   min-height: 140px;
 }
 
@@ -874,8 +745,375 @@ tbody tr { transition: background 0.1s; }
    all today — is U0's job (UI PRD §8, failure 1). */
 .field-block input:focus-visible,
 .field-block select:focus-visible,
+.field-block textarea:focus-visible,
 .auth-form button:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-color: var(--accent);
+}
+
+/* ── Profile library and routed editor ──────────────────────────────────────── */
+/* Logical properties and tokens only, as in the block above. */
+
+.view-intro {
+  margin-block: 8px 0;
+  max-inline-size: 68ch;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.profiles-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+  margin-block-start: 16px;
+}
+
+.import-field {
+  flex: 1 1 22rem;
+  max-inline-size: 42rem;
+}
+
+/* The native file control is kept: it is the only picker that is keyboard
+   accessible, localised and understood by every assistive technology without a
+   line of JavaScript. It is styled, not replaced. */
+.file-input {
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  inline-size: 100%;
+}
+.file-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.profile-group:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.profile-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: 14px;
+  margin-block: 14px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.profile-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.profile-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.profile-card-question {
+  margin: 0;
+  font-size: 14px;
+  /* A default question is a sentence, not a title: two lines is enough to
+     recognise it, and the full text is in the editor. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.profile-card-question.is-empty {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.profile-card-facts {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.profile-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: auto;
+  padding-block-start: 6px;
+}
+
+/* A link that has to read as one of a row of buttons. */
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  text-decoration: none;
+}
+.btn-link[hidden] {
+  display: none;
+}
+
+/* Destructive, but not the loudest thing on a card. */
+.btn-danger-ghost {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  padding-block: 6px;
+  padding-inline: 12px;
+  font-weight: 600;
+}
+.btn-danger-ghost:hover:not(:disabled) {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.export-menu {
+  position: relative;
+}
+.export-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  cursor: pointer;
+  /* The default triangle points nowhere useful; the panel below says enough. */
+  list-style: none;
+}
+.export-menu > summary::-webkit-details-marker { display: none; }
+.export-menu > summary::marker { display: none; }
+
+.export-menu-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 4px);
+  inset-inline-start: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 10rem;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 8%);
+}
+
+.export-option {
+  inline-size: 100%;
+  min-block-size: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+.export-option:hover {
+  background: var(--bg);
+}
+
+.profile-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.profile-panel > .field-block + .field-block {
+  margin-block-start: 16px;
+}
+
+.profile-section + .profile-section,
+.profile-panel .field-block + .profile-section {
+  margin-block-start: 20px;
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-section-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.profile-section-empty {
+  margin-block: 8px 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.profile-section .profile-list {
+  margin-block-start: 10px;
+}
+
+.profile-subfield label {
+  margin-block-end: 0;
+}
+
+.profile-subfield input[type="text"],
+.profile-subfield input[type="number"],
+.profile-subfield textarea {
+  inline-size: 100%;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding-block: 8px;
+  padding-inline: 10px;
+}
+.profile-subfield input:focus-visible,
+.profile-subfield textarea:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+/* A checkbox needs no field width, so it does not stretch like the text ones. */
+.profile-subfield-check {
+  justify-content: end;
+  padding-block-end: 8px;
+}
+
+.profile-editor.is-read-only .profile-subfield input,
+.profile-editor.is-read-only .profile-subfield textarea,
+.profile-editor.is-read-only .field-block input,
+.profile-editor.is-read-only .field-block textarea {
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.editor-back {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.editor-back a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 24px;
+  color: var(--accent-strong);
+}
+
+.editor-banner {
+  margin-block-start: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
+.editor-banner[hidden] {
+  display: none;
+}
+.editor-banner p {
+  margin: 0;
+}
+.editor-banner p + p {
+  margin-block-start: 8px;
+}
+
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.editor-cancel {
+  margin-inline-start: auto;
+}
+
+/* ── Undo toast ─────────────────────────────────────────────────────────────── */
+
+.toast-region {
+  position: fixed;
+  inset-block-end: 16px;
+  inset-inline: 16px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  /* Empty and between toasts the region must not swallow clicks on the page
+     under it; each toast turns pointer events back on for itself. */
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-inline-size: min(38rem, 100%);
+  padding-block: 10px;
+  padding-inline: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 14px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  pointer-events: auto;
+}
+.toast-error {
+  background: var(--danger);
+}
+
+.toast-message {
+  margin: 0;
+}
+
+.toast-action {
+  min-block-size: 32px;
+  padding-block: 4px;
+  padding-inline: 12px;
+  border: 1px solid var(--surface);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.toast-action:hover:not(:disabled) {
+  background: var(--surface);
+  color: var(--ink);
+}
+.toast-action:focus-visible {
+  outline: 2px solid var(--surface);
+  outline-offset: 2px;
+}
+
+.toast-remaining {
+  color: var(--line);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  min-inline-size: 2.5ch;
 }

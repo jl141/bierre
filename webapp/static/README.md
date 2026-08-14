@@ -5,13 +5,21 @@ Native ES modules, served as-is by the `StaticFiles` mount in `webapp/server.py`
 runs, which is what keeps the local download forkable by someone who only has Python.
 
 ```
-index.html      app shell only: skip link, header, nav, <main> outlet, footer, the two dialogs
+index.html      app shell only: skip link, header, nav, <main> outlet, footer
 app.js          entry point; fetches capabilities, builds the shell, starts the router
 css/            tokens → base → components → layout, linked in that cascade order
 lib/            dom.js store.js router.js api.js session.js storage.js format.js
-views/          search.js results.js settings.js signin.js account.js
-components/     nav.js account-menu.js footer.js status.js profile-dialog.js
+                profiles.js profile-file.js yaml.js
+views/          search.js results.js settings.js signin.js account.js profiles.js
+components/     nav.js account-menu.js footer.js status.js toast.js
+                profile-editor.js profile-ai-dialog.js
 ```
+
+`lib/profiles.js` is the only module that calls `/api/profiles`, and it owns the payload
+cache the library cards read (a list carries no default question and no concept count) and
+the plain-language error copy. `lib/profile-file.js` owns the versioned import/export
+envelope, and `lib/yaml.js` is the small YAML subset that makes the human format possible
+without a build step — read its header before extending it.
 
 `lib/api.js` owns the access token; `lib/session.js` owns everything that has to happen
 around it — the silent refresh at boot, the capability refetch after a sign-in or sign-out,
@@ -41,9 +49,16 @@ Authority for the layout is `hyLdwJ/PRDs/PRD_UI_UX_REVAMP_AND_USER_FEATURES.md` 
 // app.js
 routes: [
   { path: "/", title: "Search", view: createSearchView({ store }) },
-  { path: "/profiles/:id", title: "Profile", view: createProfileView({ store }) },
+  { path: "/profiles/new", title: "New profile", view: profileEditor },
+  { path: "/profiles/:id", title: "Profile", view: profileEditor },
 ]
 ```
 
 A view is `{mount(outlet, params), unmount()}`. The router moves focus to the view's
-`<h1>` and sets `document.title` — do not do either from inside a view.
+`<h1>` and sets `document.title` — do not do either from inside a view. The first pattern
+that matches wins, so a literal segment (`/profiles/new`) has to be listed before the
+pattern that would also match it (`/profiles/:id`).
+
+Views hand messages to each other through the store rather than through a query string:
+`authNotice` for `#/signin`, `profileNotice` for the profile routes, `profileDraft` for a
+parsed import awaiting review. Each is read once and cleared by whoever reads it.

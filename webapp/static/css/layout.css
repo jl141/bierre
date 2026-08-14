@@ -299,18 +299,8 @@ main {
 }
 
 @media (max-width: 760px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-list-label {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .profile-item,
-  .profile-item-body,
-  .profile-item-body:has(textarea) {
+  .profile-item-body {
     grid-template-columns: 1fr;
   }
 
@@ -322,7 +312,7 @@ main {
     flex-wrap: wrap;
   }
 
-  .btn-icon {
-    height: 34px;
+  .profile-card-list {
+    grid-template-columns: 1fr;
   }
 }

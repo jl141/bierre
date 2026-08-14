@@ -29,11 +29,15 @@ EXPECTED_MODULES = (
     "lib/api.js",
     "lib/dom.js",
     "lib/format.js",
+    "lib/profile-file.js",
+    "lib/profiles.js",
     "lib/router.js",
     "lib/session.js",
     "lib/storage.js",
     "lib/store.js",
+    "lib/yaml.js",
     "views/account.js",
+    "views/profiles.js",
     "views/search.js",
     "views/results.js",
     "views/settings.js",
@@ -41,8 +45,10 @@ EXPECTED_MODULES = (
     "components/nav.js",
     "components/account-menu.js",
     "components/footer.js",
+    "components/profile-ai-dialog.js",
+    "components/profile-editor.js",
     "components/status.js",
-    "components/profile-dialog.js",
+    "components/toast.js",
     "css/tokens.css",
     "css/base.css",
     "css/components.css",
@@ -50,6 +56,7 @@ EXPECTED_MODULES = (
 )
 
 IMPORT_PATTERN = re.compile(r"""\bfrom\s+["'](\.[^"']+)["']""")
+DIALOG_PATTERN = re.compile(r"""h\(\s*["']dialog["']""")
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 _LINE_COMMENT = re.compile(r"//.*")
@@ -156,14 +163,24 @@ def test_a_scriptless_browser_is_told_why_nothing_works(index: _Index) -> None:
     assert "noscript" in index.tags
 
 
-@pytest.mark.parametrize("relationship", ["aria-labelledby", "aria-describedby"])
-def test_both_dialogs_name_and_describe_themselves(index: _Index, relationship: str) -> None:
-    """A `<dialog>` with no accessible name is announced as just "dialog"."""
-    dialogs = index.attrs_by_tag["dialog"]
-    assert len(dialogs) == 2
+def test_the_shell_holds_no_dialog_markup(index: _Index) -> None:
+    """U4 moved the profile editor onto `#/profiles/:id`.
 
-    for dialog in dialogs:
-        assert dialog[relationship] in index.ids
+    The shell used to carry both dialogs so `components/profile-dialog.js` could
+    wire them by id. Only the AI-generation prompt is still a dialog, and it is
+    built by its own component, so markup left here would be a second, dead copy.
+    """
+    assert "dialog" not in index.attrs_by_tag
+
+
+@pytest.mark.parametrize("relationship", ["aria-labelledby", "aria-describedby"])
+def test_every_dialog_names_and_describes_itself(relationship: str) -> None:
+    """A `<dialog>` with no accessible name is announced as just "dialog"."""
+    builders = [path for path in JS_FILES if DIALOG_PATTERN.search(_code(path))]
+    assert builders, "no module builds a <dialog>; drop this guard with the last one"
+
+    for path in builders:
+        assert relationship in _code(path), path.name
 
 
 @pytest.mark.parametrize("path", JS_FILES, ids=lambda path: path.name)

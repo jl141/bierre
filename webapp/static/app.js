@@ -22,6 +22,7 @@ import { createAccountMenu } from "./components/account-menu.js";
 import { createFooter } from "./components/footer.js";
 import { createNav } from "./components/nav.js";
 import { createAccountView } from "./views/account.js";
+import { createProfileEditorView, createProfilesView } from "./views/profiles.js";
 import { createSearchView } from "./views/search.js";
 import { createSigninView } from "./views/signin.js";
 
@@ -54,6 +55,9 @@ const store = createStore({
   capabilities: null,
   profiles: [],
   defaultProfile: "",
+  // The profile the search view will run. `#/profiles` sets it when the user
+  // presses Use; the search view keeps it in step with its own dropdown.
+  profileSelection: null,
   settings: null,
   settingsDefaults: null,
   lastResult: null,
@@ -61,6 +65,11 @@ const store = createStore({
   // Message and address one route leaves for `#/signin` to display: an expired
   // session, or a just-created account.
   authNotice: null,
+  // The same idea for the profile routes: what the previous one just did.
+  profileNotice: null,
+  // A parsed import waiting to be reviewed in the editor. Held in the store
+  // rather than in a query string because it is a whole profile, not an id.
+  profileDraft: null,
 });
 
 async function loadCapabilities() {
@@ -100,7 +109,19 @@ async function boot() {
     },
   });
 
-  const routes = [{ path: "/", title: "Search", view: createSearchView({ store }) }];
+  // One editor view instance serves both editor routes, so the form is built
+  // once and its element ids stay unique. `/profiles/new` is listed before
+  // `/profiles/:id` because the router takes the first pattern that matches and
+  // `new` would otherwise be read as an id.
+  const profileEditor = createProfileEditorView({ store, router: navigation });
+
+  const routes = [
+    { path: "/", title: "Search", view: createSearchView({ store }) },
+    { path: "/profiles", title: "Domain profiles", view: createProfilesView({ store, router: navigation }) },
+    { path: "/profiles/new", title: "New profile", view: profileEditor },
+    { path: "/profiles/:id", title: "Profile", view: profileEditor },
+  ];
+
   if (capabilities.auth) {
     routes.push(
       {

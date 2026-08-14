@@ -6,12 +6,15 @@
 import { h } from "../lib/dom.js";
 
 /**
- * Nav order is by frequency of use (UI PRD §5). History, Profiles and
- * Subscriptions join the list as their routes land; `visible` is where their
- * capability gate goes.
+ * Nav order is by frequency of use (UI PRD §5). History and Subscriptions join
+ * the list as their routes land; `visible` is where their capability gate goes.
+ *
+ * Profiles is not gated: the built-ins are readable in both modes and with no
+ * account, and the library is where the write affordances appear or do not.
  */
 const NAV_ITEMS = [
   { path: "/", label: "Search", visible: () => true },
+  { path: "/profiles", label: "Profiles", visible: () => true },
 ];
 
 /**
@@ -29,7 +32,10 @@ export function createNav({ store, router }) {
 
   router.subscribe(({ path }) => {
     items.forEach((item, index) => {
-      if (item.path === path) {
+      // A sub-route keeps its section marked: `#/profiles/new` is still
+      // Profiles, and a nav with nothing current reads as "you are nowhere".
+      const current = path === item.path || (item.path !== "/" && path.startsWith(`${item.path}/`));
+      if (current) {
         links[index].setAttribute("aria-current", "page");
       } else {
         links[index].removeAttribute("aria-current");
