@@ -30,8 +30,15 @@ export function createFooter({ store }) {
     "ul",
     null,
     LEGAL_LINKS.map(([key, label]) => (
-      legalUrls[key] ? h("li", null, h("a", { href: legalUrls[key] }, label)) : null
+      legalUrls[key] ? h("li", null, h("a", {
+        href: legalUrls[key],
+        target: "_blank"
+      }, label)) : null
     )),
+    h("li", null, h("a", {
+      href: "https://docs.google.com/forms/d/e/1FAIpQLSfoXi9V7chaQ4T2Qa14VROzuD9AeiR_lg3CnjmSdBYvlRBGZw/viewform?usp=publish-editor", 
+      target: "_blank"
+    }, "Feedback/Bug Report")),
     capabilities?.mode === "local"
       ? h("li", null, h("span", { class: "local-badge" }, "Runs locally"))
       : null,
