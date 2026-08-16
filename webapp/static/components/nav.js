@@ -13,7 +13,8 @@ import { h } from "../lib/dom.js";
  * account, and the library is where the write affordances appear or do not.
  */
 const NAV_ITEMS = [
-  { path: "/", label: "Search", visible: () => true },
+  { path: "/", label: "Home", visible: () => true },
+  { path: "/search", label: "Search", visible: () => true },
   { path: "/profiles", label: "Profiles", visible: () => true },
 ];
 

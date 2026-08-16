@@ -104,7 +104,7 @@ export function createProfilesView({ store, router }) {
       h(
         "section",
         { class: "panel" },
-        h("h1", null, "Domain profiles"),
+        h("h1", { class: "panel-title" }, "Domain profiles"),
         h(
           "p",
           { class: "view-intro" },
@@ -325,7 +325,7 @@ export function createProfilesView({ store, router }) {
   function useProfile(profile) {
     // The search view owns the dropdown; it watches the store for this.
     store.set({ profileSelection: profile.id });
-    router.navigate("/");
+    router.navigate("/search");
   }
 
   async function exportAs(profile, format) {

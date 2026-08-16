@@ -9,11 +9,11 @@ body {
   font: 15px/1.5 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
 }
 
-h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: 0.2px; }
 
 /* Panel headings are the same size whether they are the routed view's <h1> or a
    secondary <h2>, so the heading level stays free to describe the document. */
-.panel-title { margin: 0 0 14px; font-size: 16px; font-weight: 600; }
+.panel-title { margin: 0 0 14px; font-size: 18px; font-weight: 600; }
 
 label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 

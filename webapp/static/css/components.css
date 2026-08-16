@@ -752,12 +752,150 @@ tbody tr { transition: background 0.1s; }
   border-color: var(--accent);
 }
 
+/* ── Home page ─────────────────────────────────────────────────────────────── */
+
+.view-home {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.home-panel {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.home-hero,
+.home-section {
+  padding-block: 22px;
+  padding-inline: clamp(16px, 3vw, 30px);
+}
+
+.home-hero {
+  border-block-end: 1px solid var(--line);
+  background:
+    radial-gradient(circle at 5% -20%, rgba(147, 192, 164, 0.22), transparent 48%),
+    radial-gradient(circle at 90% 120%, rgba(182, 196, 162, 0.22), transparent 54%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.88), rgba(251, 250, 248, 0.98));
+}
+
+.home-kicker {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 12px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.home-hero-title {
+  margin: 8px 0 0;
+  font-size: clamp(1.7rem, 3.3vw, 2.45rem);
+  line-height: 1.14;
+  max-inline-size: 22ch;
+}
+
+.home-title {
+  margin: 0;
+}
+
+.home-copy {
+  margin: 10px 0 0;
+  max-inline-size: 72ch;
+  color: var(--muted);
+}
+
+.home-brand-inline {
+  display: inline-block;
+  font-weight: 700;
+}
+
+.home-section + .home-section {
+  border-block-start: 1px solid var(--line);
+}
+
+.home-steps {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.home-step {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 249, 247, 0.98));
+}
+
+.home-step h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.home-step p {
+  margin: 8px 0 0;
+}
+
+.home-cta {
+  background: linear-gradient(180deg, rgba(238, 241, 240, 0.5), transparent);
+}
+
+.home-cta-actions {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.home-cta-button {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 40px;
+  padding-block: 10px;
+  padding-inline: 18px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-cta-button:hover {
+  background: var(--accent-strong);
+}
+
+.home-cta-button:focus-visible,
+.home-cta-ghost:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.home-launch-modal {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.home-launch-form {
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .home-hero,
+  .home-section {
+    padding-inline: 16px;
+    padding-block: 18px;
+  }
+}
+
 /* ── Profile library and routed editor ──────────────────────────────────────── */
 /* Logical properties and tokens only, as in the block above. */
 
 .view-intro {
   margin-block: 8px 0;
-  max-inline-size: 68ch;
+  max-inline-size: 67ch;
   color: var(--muted);
   font-size: 14px;
 }

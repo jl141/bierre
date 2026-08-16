@@ -22,6 +22,7 @@ import { createAccountMenu } from "./components/account-menu.js";
 import { createFooter } from "./components/footer.js";
 import { createNav } from "./components/nav.js";
 import { createAccountView } from "./views/account.js";
+import { createHomeView } from "./views/home.js";
 import { createProfileEditorView, createProfilesView } from "./views/profiles.js";
 import { createSearchView } from "./views/search.js";
 import { createSigninView } from "./views/signin.js";
@@ -116,7 +117,8 @@ async function boot() {
   const profileEditor = createProfileEditorView({ store, router: navigation });
 
   const routes = [
-    { path: "/", title: "Search", view: createSearchView({ store }) },
+    { path: "/", title: "Home", view: createHomeView({ store }) },
+    { path: "/search", title: "Search", view: createSearchView({ store }) },
     { path: "/profiles", title: "Domain profiles", view: createProfilesView({ store, router: navigation }) },
     { path: "/profiles/new", title: "New profile", view: profileEditor },
     { path: "/profiles/:id", title: "Profile", view: profileEditor },
