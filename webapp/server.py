@@ -36,6 +36,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import sentry_sdk
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core import (  # noqa: E402
@@ -75,7 +77,7 @@ MAX_REQUEST_BYTES = 1024 * 1024
 RESULT_WARN_BYTES = 4 * 1024 * 1024
 
 BIERRE_CA_TIMEOUT_SECONDS = 75
-BIERRE_CA_DEFAULT_BASE_URL = "http://127.0.0.1:8000"
+BIERRE_CA_DEFAULT_BASE_URL = "https://bierre.ca/accounts"
 
 # Credentials the caller presented, replayed to bierre-ca so it authorises the
 # end user rather than this service.
@@ -551,6 +553,18 @@ def _access_token_verifier(settings: Settings, session: requests.Session) -> "Ac
         session=session,
     )
 
+def init_sentry():
+    sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN"),
+    # Add data like request headers and IP for users,
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+    # Enable sending logs to Sentry
+    enable_logs=True,
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for tracing.
+    traces_sample_rate=1.0,
+)
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.load(_config_path())
@@ -568,6 +582,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     profile_service = ProfileService(repository=build_profile_repository(settings))
 
+    init_sentry()
+
     app = FastAPI(title="bierre web UI", version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.profile_service = profile_service
@@ -580,6 +596,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         base_settings=settings,
         profile_loader=_profile_loader(profile_service),
     )
+
+    @app.get("/sentry-debug")
+    async def trigger_error():
+        division_by_zero = 1 / 0
 
     @app.middleware("http")
     async def _limit_body_size(request: Request, call_next):
