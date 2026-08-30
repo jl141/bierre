@@ -17,7 +17,7 @@ from .config import Settings
 from .models import Paper, RunResult
 from .repositories.profile_repository import DomainProfile
 from .repositories.yaml_profile_repository import YamlProfileRepository
-from .util import dedup, extraction, ranking
+from .util import dedup, extraction, metrics, ranking
 from .util.journal_rankings import impact_factor_for_journal
 from .sources import REGISTRY, SearchContext, SourceDispatchState, policy_for
 from .sources import unpaywall
@@ -218,7 +218,9 @@ def _search(
             for future in as_completed(futures):
                 source, query = futures[future]
                 try:
-                    papers.extend(future.result())
+                    query_result = future.result()
+                    papers.extend(query_result)
+                    metrics.papers_retrieved(source, len(query_result))
                 except Exception as exc:  # a single source failing must not abort the run
                     errors.append({"stage": source, "error_type": "workflow_error", "message": str(exc)})
                 tick(f"{source}: {query[:40]}")
