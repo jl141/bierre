@@ -5,7 +5,7 @@ from __future__ import annotations
 from . import text
 from ..models import Paper
 
-from ..util import metrics
+from ..utils import metrics
 
 def _merge(into: Paper, other: Paper) -> None:
     """Fold ``other`` into ``into`` in place, preferring richer values."""
