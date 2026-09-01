@@ -136,6 +136,8 @@ def run_pipeline(
     question = question.strip() or profile.default_question
     run_id = f"run_{uuid.uuid4().hex[:10]}"
 
+    metrics.run_start(run_id)
+
     queries = planner.generate_queries(question, profile)[: max(settings.search.max_queries_per_run, 1)]
 
     errors: list[dict] = []
@@ -149,6 +151,7 @@ def run_pipeline(
     if progress:
         progress(2, 4, "Deduplicating and ranking")
     deduped = dedup.deduplicate(papers)
+    metrics.papers_deduped(len(papers) - len(deduped))
     for paper in deduped:
         if paper.impact_factor is None:
             paper.impact_factor = impact_factor_for_journal(paper.journal)

@@ -5,8 +5,6 @@ from __future__ import annotations
 from . import text
 from ..models import Paper
 
-from ..utils import metrics
-
 def _merge(into: Paper, other: Paper) -> None:
     """Fold ``other`` into ``into`` in place, preferring richer values."""
     for source in other.sources:
@@ -54,5 +52,4 @@ def deduplicate(papers: list[Paper]) -> list[Paper]:
     deduped = [by_key[key] for key in order]
     for index, paper in enumerate(deduped, start=1):
         paper.paper_id = f"P{index:04d}"
-    metrics.papers_deduped(len(papers) - len(deduped))
     return deduped
