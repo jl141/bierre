@@ -1,4 +1,4 @@
-"""Unit tests for `core.util.ranking`.
+"""Unit tests for `core.utils.ranking`.
 
 Absolute relevance numbers depend on which optional libraries are installed
 (rank-bm25 / scikit-learn / rapidfuzz), so these tests assert *ordering,
@@ -13,7 +13,7 @@ import pytest
 
 from core.config import Settings
 from core.repositories.profile_repository import Bucket, DomainProfile
-from core.util.ranking import rank_and_select
+from core.utils.ranking import rank_and_select
 from tests.factories import make_paper, make_profile
 
 QUESTION = "rechargeable N-halamine polyurethane coating"

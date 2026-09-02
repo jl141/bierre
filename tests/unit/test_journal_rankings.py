@@ -1,11 +1,11 @@
-"""Unit tests for `core.util.journal_rankings`."""
+"""Unit tests for `core.utils.journal_rankings`."""
 
 from __future__ import annotations
 
 import pytest
 
-from core.util import journal_rankings
-from core.util.journal_rankings import impact_factor_for_journal
+from core.utils import journal_rankings
+from core.utils.journal_rankings import impact_factor_for_journal
 
 
 @pytest.fixture(autouse=True)

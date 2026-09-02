@@ -1,4 +1,4 @@
-"""Unit tests for `core.util.http` — the shared retrying HTTP helpers.
+"""Unit tests for `core.utils.http` — the shared retrying HTTP helpers.
 
 `request_json` / `request_text` accept `session=`, `sleep_fn=` and `jitter_fn=`
 keyword arguments purely so tests can drive them; no sockets and no real sleeps
@@ -13,7 +13,7 @@ from email.utils import format_datetime
 import pytest
 import requests
 
-from core.util.http import (
+from core.utils.http import (
     DEFAULT_MAX_ATTEMPTS,
     record_error,
     request_json,

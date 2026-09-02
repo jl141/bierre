@@ -1,8 +1,8 @@
-"""Unit tests for `core.util.dedup`."""
+"""Unit tests for `core.utils.dedup`."""
 
 from __future__ import annotations
 
-from core.util.dedup import deduplicate
+from core.utils.dedup import deduplicate
 from tests.factories import make_paper
 
 

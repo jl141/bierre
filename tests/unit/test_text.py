@@ -1,10 +1,10 @@
-"""Unit tests for `core.util.text` — the pure helpers everything else leans on."""
+"""Unit tests for `core.utils.text` — the pure helpers everything else leans on."""
 
 from __future__ import annotations
 
 import pytest
 
-from core.util import text
+from core.utils import text
 
 
 @pytest.mark.parametrize(

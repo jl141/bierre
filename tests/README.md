@@ -53,7 +53,7 @@ Markers are applied automatically from the directory name (see
 2. **Never write to the checked-in `profiles/` directory.** `YamlProfileRepository()`
    with no argument points at real repository data. Use the `profiles_dir` /
    `yaml_repo` fixtures, which are per-test temp directories.
-3. **No real sleeping.** `core.util.http` exposes `sleep_fn` / `jitter_fn`
+3. **No real sleeping.** `core.utils.http` exposes `sleep_fn` / `jitter_fn`
    parameters; use them (or the `captured_sleeps` fixture) so retry tests assert
    the backoff schedule instead of waiting for it.
 4. **Never hand-edit one copy of `tests/fixtures/`.** Those payloads exist twice — here and in

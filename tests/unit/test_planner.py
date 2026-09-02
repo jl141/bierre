@@ -1,9 +1,9 @@
-"""Unit tests for `core.util.planner` — question -> search queries."""
+"""Unit tests for `core.utils.planner` — question -> search queries."""
 
 from __future__ import annotations
 
 from core.repositories.profile_repository import DomainProfile
-from core.util.planner import analyze_question, generate_queries
+from core.utils.planner import analyze_question, generate_queries
 from tests.factories import make_profile
 
 

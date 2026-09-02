@@ -126,25 +126,25 @@ def offline_settings() -> Settings:
 def captured_sleeps(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     """Record backoff sleeps instead of actually waiting.
 
-    Patches the module-level indirections in `core.util.http`, which is why
+    Patches the module-level indirections in `core.utils.http`, which is why
     those exist: retry timing is testable without slowing the suite down.
     """
     sleeps: list[float] = []
-    monkeypatch.setattr("core.util.http._sleep", sleeps.append)
-    monkeypatch.setattr("core.util.http._jitter_random", lambda: 0.0)
+    monkeypatch.setattr("core.utils.http._sleep", sleeps.append)
+    monkeypatch.setattr("core.utils.http._jitter_random", lambda: 0.0)
     return sleeps
 
 
 @pytest.fixture
 def patched_session(monkeypatch: pytest.MonkeyPatch):
-    """Install a scripted session as the shared `core.util.http` session.
+    """Install a scripted session as the shared `core.utils.http` session.
 
     Source adapters call `request_json` without a `session=` argument, so this
     is the seam for adapter-level tests.
     """
 
     def install(session: object) -> object:
-        monkeypatch.setattr("core.util.http._get_session", lambda: session)
+        monkeypatch.setattr("core.utils.http._get_session", lambda: session)
         return session
 
     return install

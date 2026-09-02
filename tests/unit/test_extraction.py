@@ -1,9 +1,9 @@
-"""Unit tests for `core.util.extraction` — rule-based evidence rows."""
+"""Unit tests for `core.utils.extraction` — rule-based evidence rows."""
 
 from __future__ import annotations
 
 from core.repositories.profile_repository import DomainProfile, ExtractionField
-from core.util.extraction import extract
+from core.utils.extraction import extract
 from tests.factories import make_paper, make_profile, make_ranked_paper
 
 

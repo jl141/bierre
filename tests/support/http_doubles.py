@@ -1,6 +1,6 @@
 """In-memory stand-ins for `requests` objects.
 
-`core.util.http` and `HttpProfileRepository` only touch a handful of attributes
+`core.utils.http` and `HttpProfileRepository` only touch a handful of attributes
 on a response (`status_code`, `headers`, `reason`, `text`, `.json()`), so a tiny
 fake is enough and keeps unit tests free of sockets.
 """
@@ -50,7 +50,7 @@ class ScriptedSession:
     """Replays a queue of `FakeResponse` objects and records every call.
 
     Serves both transports used in this codebase:
-    `session.get(...)` (`core.util.http`) and
+    `session.get(...)` (`core.utils.http`) and
     `session.request(...)` (`HttpProfileRepository`).
     """
 
