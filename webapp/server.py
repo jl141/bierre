@@ -37,6 +37,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import sentry_sdk
+from sentry_sdk.integrations.logging import LoggingIntegration
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -571,6 +572,9 @@ def init_sentry():
         # run the profiler on when there is an active transaction
         profile_lifecycle="trace",
         # To debug: set debug=True
+        integrations=[
+            LoggingIntegration(capture_sentry_logs=True),
+        ],
     )
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -589,26 +593,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     profile_service = ProfileService(repository=build_profile_repository(settings))
 
-    sentry_sdk.init(
-        dsn=os.environ.get("SENTRY_DSN"),
-        # Add data like request headers and IP for users,
-        # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-        send_default_pii=True,
-        # Enable sending logs to Sentry
-        enable_logs=True,
-        # Set traces_sample_rate to 1.0 to capture 100%
-        # of transactions for tracing.
-        traces_sample_rate=1.0,
-        # Set profile_session_sample_rate to 1.0 to profile 100%
-        # of profile sessions.
-        profile_session_sample_rate=1.0,
-        # Set profile_lifecycle to "trace" to automatically
-        # run the profiler on when there is an active transaction
-        profile_lifecycle="trace",
-        debug=True,
-        # Disable dedupe
-        disabled_integrations=[sentry_sdk.integrations.dedupe.DedupeIntegration]
-    )
+    init_sentry()
 
     app = FastAPI(title="bierre web UI", version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
@@ -625,8 +610,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/sentry-debug")
     async def trigger_error():
-        logger.info(os.environ.get("SENTRY_DSN"))
-        logger.warning("Triggering divison by zero error! (Python logger)")
+        logger.info("Triggering divison by zero error! (Python logger)")
         sentry_sdk.logger.warning('Triggering divison by zero error! (Sentry logger)')
         division_by_zero = 1 / 0
 
