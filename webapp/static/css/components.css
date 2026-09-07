@@ -874,14 +874,6 @@ tbody tr { transition: background 0.1s; }
   outline-offset: 2px;
 }
 
-.home-launch-modal {
-  width: min(560px, calc(100vw - 32px));
-}
-
-.home-launch-form {
-  gap: 12px;
-}
-
 @media (max-width: 720px) {
   .home-hero,
   .home-section {
