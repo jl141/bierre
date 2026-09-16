@@ -23,6 +23,7 @@ import { createFooter } from "./components/footer.js";
 import { createNav } from "./components/nav.js";
 import { createAccountView } from "./views/account.js";
 import { createHomeView } from "./views/home.js";
+import { createPrivacyView } from "./views/privacy.js";
 import { createProfileEditorView, createProfilesView } from "./views/profiles.js";
 import { createSearchView } from "./views/search.js";
 import { createSigninView } from "./views/signin.js";
@@ -122,6 +123,7 @@ async function boot() {
     { path: "/profiles", title: "Domain profiles", view: createProfilesView({ store, router: navigation }) },
     { path: "/profiles/new", title: "New profile", view: profileEditor },
     { path: "/profiles/:id", title: "Profile", view: profileEditor },
+    { path: "/privacy", title: "Privacy Policy", view: createPrivacyView() },
   ];
 
   if (capabilities.auth) {

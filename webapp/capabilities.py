@@ -25,7 +25,7 @@ from core.config import Settings
 
 LOCALES = ["en"]
 DEFAULT_LOCALE = "en"
-LEGAL_URLS = {"privacy": "/privacy", "terms": "/terms", "sources": "/data-sources"}
+LEGAL_URLS = {"privacy": "#/privacy", "terms": "#/terms", "sources": "#/data-sources"}
 HISTORY_RETENTION = {"runs": 200, "months": 12}
 
 

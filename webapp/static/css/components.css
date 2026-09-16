@@ -183,6 +183,17 @@ tbody tr:hover { background: var(--row-hover); }
   100% { transform: translateX(167%); }
 }
 
+.body {
+  margin-block: 8px 0;
+  max-inline-size: 85ch;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.body-section {
+  padding-top: 16px;
+}
+
 /* ── Results controls bar ───────────────────────────────────────────────────── */
 .results-controls {
   display: flex;
