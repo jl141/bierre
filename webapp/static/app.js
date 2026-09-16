@@ -27,6 +27,7 @@ import { createPrivacyView } from "./views/privacy.js";
 import { createProfileEditorView, createProfilesView } from "./views/profiles.js";
 import { createSearchView } from "./views/search.js";
 import { createSigninView } from "./views/signin.js";
+import { createTermsView } from "./views/terms.js";
 
 /**
  * What a machine with no account service looks like. Used when
@@ -124,6 +125,7 @@ async function boot() {
     { path: "/profiles/new", title: "New profile", view: profileEditor },
     { path: "/profiles/:id", title: "Profile", view: profileEditor },
     { path: "/privacy", title: "Privacy Policy", view: createPrivacyView() },
+    { path: "/terms", title: "Terms and Conditions", view: createTermsView() },
   ];
 
   if (capabilities.auth) {
